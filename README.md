@@ -1,65 +1,76 @@
-# DJ Audio-Reactive HLSL Visualizer (Daft Alive 2007 Edition)
+# DJ Audio-Reactive Visualizer (Windows & macOS Apple Silicon)
 
-A turnkey, high-performance C++20 / Direct3D 11 real-time audio-reactive visualizer designed for live DJ performances, stage projectors, LED walls, and Unreal Engine 5 virtual production.
+A turnkey, high-performance C++20 cross-platform (**Windows x64** & **macOS Apple Silicon M1/M2/M3/M4**) real-time audio-reactive visualizer designed for live DJ performances, stage projectors, and LED walls.
 
 ---
 
 ## Key Features
 
-### Live DJ & Performance Features:
-- **Zero-Setup Audio Capture**: Automatic WASAPI Loopback captures music from any DJ software (rekordbox, Serato, Traktor, Ableton, VirtualDJ, Spotify) with no virtual cables required.
-- **Dual-Display Management**: Primary DJ control dashboard on laptop (Display 1) + dedicated borderless fullscreen Stage Output on projector / LED wall (Display 2).
-- **Curated Concert Themes**:
-  1. 🔺 **Alive Pyramid & LED Matrix**: Iconic Daft Punk 2007 wireframe stage pyramid and animated stadium matrix.
-  2. 🌆 **Tron Synthwave Horizon**: Endless 80s outrun perspective grid undulating to audio spectrum with retro sun.
-  3. 💎 **3D Raymarched Crystals**: Morphing fractal monoliths and kaleidoscope tunnels pulsating to sub-bass.
-  4. ⚡ **Concert Laser Matrix**: Sweeping moving head laser fans, beam haze, and stage blinders.
-- **Auto-Pilot Mode**: Automatic scene transitions, camera orbit motion, and strobe bursts on beat drops.
-- **Preset System**: Save and load complete stage setups as human-readable `.json` files.
-- **MIDI Controller Support**: Map physical knobs and faders from DJ mixers directly to visual parameters.
-
-### HLSL Live Shader Engine & Integration:
-- **Unreal-Style HLSL Shaders**: Pure HLSL (`src/shaders/*.hlsl`) utilizing standard Unreal math, SDF primitives, noise functions, and camera rays.
-- **Live Runtime Hot-Reloading**: Modify any `.hlsl` shader and press `Ctrl+S` — updates live on screen in <50ms without crashing.
-- **Spout 2 GPU Texture Sharing**: Zero-latency Direct3D 11 shared texture handle (`DJVisualizer`) streaming directly into Unreal Engine 5, OBS Studio, and Resolume Arena.
-- **Unreal Engine 5 Bridge (`ue5_bridge/`)**: Ready-to-use Material Custom Node snippets, `.ush` headers, Niagara particle equations, and Audio Synesthesia mapping guides.
+### Live DJ & Performance Features
+- **Zero-Setup System Audio & Line-In Capture**:
+  - **Windows**: Automatic WASAPI Loopback captures system audio from any DJ software (rekordbox, Serato, Traktor, Ableton, VirtualDJ, Spotify) plus WASAPI Line-In/Microphone capture.
+  - **macOS (13.0+)**: Native `ScreenCaptureKit` captures system audio directly with zero virtual audio drivers required, plus `CoreAudio` / `AVAudioEngine` support for external DJ mixers, audio interfaces, and microphones.
+- **Dual-Display Stage Management**: Primary DJ Control Console on your laptop (Display 1) + dedicated borderless fullscreen Stage Projector Output on secondary displays/projectors (Display 2).
+- **Live Hot-Reloading HLSL Shader Engine**:
+  - Edit any `.hlsl` shader in `src/shaders/` and save (`Ctrl+S` / `Cmd+S`) — the built-in `#include` preprocessor and HLSL-to-GLSL 330 Core transpiler hot-reloads shaders live in `<100ms` on both Windows and Mac.
+- **In-App 1-Click Auto-Updater**:
+  - Checks GitHub Releases on startup and via the top toolbar (`Check for Updates`), downloads the latest Windows or macOS release, strips macOS Gatekeeper quarantine flags automatically, swaps the binary/app bundle, and relaunches in one click.
+- **MIDI Controller Support**: Map physical knobs and faders via Windows `WinMM` or macOS `CoreMIDI`.
 
 ---
 
-## Quick Start & Building
+## Downloading & Running (For DJs / End Users)
 
-### 1. Requirements
-- Windows 10 / 11 (64-bit)
-- Visual Studio 2022 (MSVC C++20) with Desktop C++ Workload
-- CMake 3.20+
+### macOS (Apple Silicon M1 / M2 / M3 / M4, macOS 13.0+)
+1. Download **`DJVisualizer-macOS-arm64.zip`** from the repository's [**Releases**](../../releases/latest) page and extract it.
+2. **First Launch**: Double-click **`Launch_DJVisualizer_Mac.command`** (this automatically clears macOS Gatekeeper quarantine on the unsigned `.app` bundle and launches **`DJVisualizer.app`**). After the first run, you can open **`DJVisualizer.app`** directly anytime.
+3. **Permissions**: On first launch, macOS will prompt for **Screen & System Audio Recording** (used by `ScreenCaptureKit` to hear desktop audio) and **Microphone** (for external DJ mixer / audio interface line-in). Click **Allow**.
+4. **Updating**: When a new version is pushed, click **`Update Available — Click to Install & Restart`** in the top bar of the app.
 
-### 2. Build via Script
-Double-click `scripts\build.bat` or run:
-```cmd
-scripts\build.bat
-```
+### Windows (Windows 10 / 11 64-bit)
+1. Download **`DJVisualizer-Windows-x64.zip`** from the [**Releases**](../../releases/latest) page and extract it.
+2. Double-click **`DJVisualizer.exe`** (or `Launch_DJVisualizer.bat`).
+3. **Updating**: Click **`Update Available — Click to Install & Restart`** in the top bar whenever a new release is available.
 
-### 3. Launch
-- **VS Code**: Press **`F5`** (automatically builds any modified code and launches the visualizer).
-- **Scripts**: Double-click `scripts\run.bat` or launch `build\bin\DJVisualizer.exe`.
+---
 
-### 4. Package Deliverable for Client
-Run the automated packaging script to produce a standalone zero-dependency portable ZIP:
-```cmd
-scripts\package.bat
-```
-Output:
-- Portable folder: `dist\DJVisualizer\`
-- Client ZIP bundle: `dist\DJVisualizer_v1.0.zip` (contains `.exe`, runtime DLLs, presets, shaders, and 1-click launcher)
+## Building from Source
+
+### Windows
+- **Requirements**: Visual Studio 2022 (Desktop C++ workload) + CMake 3.20+
+- **Build**:
+  ```powershell
+  cmake -B build -DCMAKE_BUILD_TYPE=Release
+  cmake --build build --config Release
+  ```
+- **Run**: `build\bin\DJVisualizer.exe`
+
+### macOS (Apple Silicon)
+- **Requirements**: Xcode Command Line Tools (`xcode-select --install`) + CMake 3.20+ (`brew install cmake`)
+- **Build & Package**:
+  ```bash
+  chmod +x scripts/package_mac.sh
+  ./scripts/package_mac.sh
+  ```
+- **Output**: `dist_mac/DJVisualizer/DJVisualizer.app` and `dist_mac/DJVisualizer-macOS-arm64.zip`
+
+---
+
+## Publishing an Update (CI/CD Workflow)
+1. Increment `CURRENT_VERSION` in [`src/control/AutoUpdater.h`](src/control/AutoUpdater.h) (e.g. `"1.0.1"`).
+2. Commit and push a version tag:
+   ```bash
+   git add -A
+   git commit -m "Release v1.0.1"
+   git tag v1.0.1
+   git push origin main --tags
+   ```
+3. GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)) will automatically compile both `DJVisualizer-Windows-x64.zip` and `DJVisualizer-macOS-arm64.zip` and publish them to GitHub Releases.
 
 ---
 
 ## Hotkeys & Shortcuts
-- `F11`: Toggle Fullscreen Presentation Mode on Primary Screen.
-- `ESC`: Exit Fullscreen or close Stage Projector Window.
-- `Ctrl+S` in any `.hlsl` file: Instant live shader recompilation.
-
----
-
-## Unreal Engine 5 Integration
-See [`ue5_bridge/UE5_Integration_Guide.md`](ue5_bridge/UE5_Integration_Guide.md) for full instructions on setting up Spout 2 streaming, Material Custom Nodes, and Niagara particle vectors in UE5.
+- `F11`: Toggle Fullscreen Presentation Mode on the primary window.
+- `ESC`: Exit Fullscreen or close the Stage Projector window.
+- `Spacebar`: Manual Tap Tempo / Beat Sync.
+- `Ctrl+S` / `Cmd+S` in any `src/shaders/*.hlsl` file: Instant live shader hot-reload.
