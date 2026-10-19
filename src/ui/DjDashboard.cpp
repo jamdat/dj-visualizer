@@ -476,7 +476,7 @@ void DjDashboard::renderTextAndPalettePanel() {
 
         ImGui::SameLine();
         if (ImGui::Button("Reset to 'DAD PUNK'")) {
-            strncpy_s(user.customText, sizeof(user.customText), "DAD PUNK", _TRUNCATE);
+            std::snprintf(user.customText, sizeof(user.customText), "%s", "DAD PUNK");
         }
 
         // 5 Palette Swatches
@@ -625,7 +625,7 @@ void DjDashboard::renderProjectorOutputPanel() {
                             user.paletteIndex = loaded.paletteIndex;
                             user.halloweenMode = loaded.halloweenMode;
                             user.masterBrightness = loaded.masterBrightness;
-                            strncpy_s(user.customText, sizeof(user.customText), loaded.customText.c_str(), _TRUNCATE);
+                            std::snprintf(user.customText, sizeof(user.customText), "%s", loaded.customText.c_str());
                             m_autoPilot->selectScene(loaded.sceneIndex, 30.0f);
                         }
                     }
