@@ -1,0 +1,19 @@
+{
+  "audioGain": 1.8,
+  "autoPilot": true,
+  "customText": "DAD PUNK",
+  "floorMultiplier": 0.6,
+  "halloweenMode": false,
+  "laserMultiplier": 0,
+  "logoMultiplier": 0.55,
+  "logoStyle": 0,
+  "masterBrightness": 0.85,
+  "name": "ChillAttract",
+  "paletteIndex": 3,
+  "particleMultiplier": 0.3,
+  "pyramidMultiplier": 0.25,
+  "pyramidPattern": 3,
+  "sceneIndex": 5,
+  "sceneName": "ModularMixer",
+  "skyMultiplier": 1
+}

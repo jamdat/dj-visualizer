@@ -1,0 +1,19 @@
+{
+  "audioGain": 1.8,
+  "autoPilot": true,
+  "customText": "DAD PUNK",
+  "floorMultiplier": 1.3,
+  "halloweenMode": false,
+  "laserMultiplier": 0,
+  "logoMultiplier": 0,
+  "logoStyle": 0,
+  "masterBrightness": 0.85,
+  "name": "TronGridRun",
+  "paletteIndex": 1,
+  "particleMultiplier": 1,
+  "pyramidMultiplier": 0,
+  "pyramidPattern": 0,
+  "sceneIndex": 1,
+  "sceneName": "ModularMixer",
+  "skyMultiplier": 0.3
+}
