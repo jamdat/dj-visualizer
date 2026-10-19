@@ -1,14 +1,45 @@
 cmake_minimum_required(VERSION 3.20)
-project(DJVisualizer LANGUAGES CXX)
+
+if(APPLE)
+    project(DJVisualizer LANGUAGES CXX OBJCXX)
+    set(CMAKE_OBJCXX_STANDARD 20)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+else()
+    project(DJVisualizer LANGUAGES CXX)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Version & GitHub Repository metadata for Auto-Updater
+if(NOT DEFINED DJVISUALIZER_VERSION)
+    set(DJVISUALIZER_VERSION "v1.0.0")
+endif()
+if(NOT DEFINED DJVISUALIZER_GITHUB_REPO)
+    set(DJVISUALIZER_GITHUB_REPO "jamdat/dj-visualizer")
+endif()
+
 # Set runtime output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin)
+
+# Fetch GLFW 3.4 for cross-platform Windowing & OpenGL 3.3 Core Contexts
+include(FetchContent)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG        3.4
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(glfw)
+
+find_package(OpenGL REQUIRED)
 
 # Include directories
 include_directories(
@@ -21,12 +52,12 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/fft
 )
 
-# Source files
+# Common Source files
 set(SOURCES
     src/main.cpp
     src/core/Logger.h
     src/core/Logger.cpp
-    
+
     # Audio
     src/audio/WasapiAudioCapture.h
     src/audio/WasapiAudioCapture.cpp
@@ -36,6 +67,7 @@ set(SOURCES
     src/audio/BeatDetector.cpp
 
     # Graphics
+    src/graphics/GL33Loader.h
     src/graphics/ConstantBuffers.h
     src/graphics/ShaderCompiler.h
     src/graphics/ShaderCompiler.cpp
@@ -55,91 +87,94 @@ set(SOURCES
     src/control/AutoPilot.cpp
     src/control/MidiController.h
     src/control/MidiController.cpp
+    src/control/AutoUpdater.h
+    src/control/AutoUpdater.cpp
 
     # UI
     src/ui/DjDashboard.h
     src/ui/DjDashboard.cpp
 
-    # Third Party: Dear ImGui
+    # Third Party: Dear ImGui (Cross-Platform GLFW + OpenGL 3.3 Core)
     third_party/imgui/imgui.cpp
     third_party/imgui/imgui_draw.cpp
     third_party/imgui/imgui_tables.cpp
     third_party/imgui/imgui_widgets.cpp
     third_party/imgui/imgui_demo.cpp
-    third_party/imgui/backends/imgui_impl_win32.cpp
-    third_party/imgui/backends/imgui_impl_dx11.cpp
+    third_party/imgui/backends/imgui_impl_glfw.cpp
+    third_party/imgui/backends/imgui_impl_opengl3.cpp
 )
+
+if(APPLE)
+    list(APPEND SOURCES src/audio/MacAudioCapture.mm)
+endif()
 
 # Executable definition
 if(MSVC)
     add_executable(DJVisualizer WIN32 ${SOURCES})
     target_compile_options(DJVisualizer PRIVATE /W3 /permissive- /utf-8 /EHsc)
+elseif(APPLE)
+    add_executable(DJVisualizer MACOSX_BUNDLE ${SOURCES})
+    set_target_properties(DJVisualizer PROPERTIES
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.daftalive.djvisualizer"
+        MACOSX_BUNDLE_BUNDLE_NAME "DJVisualizer"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${DJVISUALIZER_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${DJVISUALIZER_VERSION}"
+        MACOSX_BUNDLE_INFO_STRING "DJ Audio-Reactive Visualizer (Daft Alive Edition)"
+    )
+    target_compile_options(DJVisualizer PRIVATE -Wno-deprecated-declarations -fobjc-arc)
 else()
     add_executable(DJVisualizer ${SOURCES})
 endif()
 
-target_compile_definitions(DJVisualizer PRIVATE IMGUI_IMPL_WIN32_DISABLE_GAMEPAD)
+target_compile_definitions(DJVisualizer PRIVATE
+    DJVISUALIZER_VERSION="${DJVISUALIZER_VERSION}"
+    DJVISUALIZER_GITHUB_REPO="${DJVISUALIZER_GITHUB_REPO}"
+)
 
 # Link Libraries
-target_link_libraries(DJVisualizer PRIVATE
-    d3d11
-    dxgi
-    d3dcompiler
-    dwmapi
-    avrt
-    winmm
-    ole32
-)
-
-# Locate FXC Shader Compiler
-find_program(FXC_EXECUTABLE fxc
-    HINTS
-    "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64"
-    "C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64"
-    "C:/Program Files (x86)/Windows Kits/10/bin/x64"
-)
-
-# Dependency-tracked HLSL Shader Compilation (.hlsl -> .cso only when modified)
-set(SHADER_NAMES
-    ModularMixer
-    AlivePyramid
-    SynthwaveGrid
-    RaymarchedCrystals
-    ConcertLasers
-    PostProcessGlitch
-)
-
-set(SHADER_OUTPUTS "")
-set(COMMON_HLSL "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/Common.hlsl")
-set(SHADER_OUT_DIR "${CMAKE_BINARY_DIR}/bin/src/shaders")
-
-if(FXC_EXECUTABLE)
-    foreach(SHADER_NAME ${SHADER_NAMES})
-        set(HLSL_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/${SHADER_NAME}.hlsl")
-        set(HLSL_DST "${SHADER_OUT_DIR}/${SHADER_NAME}.hlsl")
-        set(CSO_OUT "${SHADER_OUT_DIR}/${SHADER_NAME}.cso")
-        add_custom_command(
-            OUTPUT "${CSO_OUT}" "${HLSL_DST}"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_OUT_DIR}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMMON_HLSL}" "${SHADER_OUT_DIR}/Common.hlsl"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${HLSL_SRC}" "${HLSL_DST}"
-            COMMAND "${FXC_EXECUTABLE}" /T ps_5_0 /E PSMain /O3 /Fo "${CSO_OUT}" /I "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders" "${HLSL_SRC}"
-            DEPENDS "${HLSL_SRC}" "${COMMON_HLSL}"
-            COMMENT "Precompiling ${SHADER_NAME}.hlsl -> ${SHADER_NAME}.cso (/O3)"
-            VERBATIM
-        )
-        list(APPEND SHADER_OUTPUTS "${CSO_OUT}" "${HLSL_DST}")
-    endforeach()
-
-    add_custom_target(CompileShaders DEPENDS ${SHADER_OUTPUTS})
-    add_dependencies(DJVisualizer CompileShaders)
+if(WIN32)
+    target_link_libraries(DJVisualizer PRIVATE
+        glfw
+        OpenGL::GL
+        dwmapi
+        avrt
+        winmm
+        ole32
+    )
+elseif(APPLE)
+    target_link_libraries(DJVisualizer PRIVATE
+        glfw
+        OpenGL::GL
+        "-framework Cocoa"
+        "-framework IOKit"
+        "-framework CoreVideo"
+        "-framework CoreAudio"
+        "-framework AudioToolbox"
+        "-framework AVFoundation"
+        "-framework CoreMedia"
+        "-framework ScreenCaptureKit"
+    )
 endif()
 
-# Post-Build: Ensure asset/preset directories exist
-add_custom_command(TARGET DJVisualizer POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/src/shaders
-    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/assets/textures
-    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/presets
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/ue5_bridge $<TARGET_FILE_DIR:DJVisualizer>/ue5_bridge
-    COMMENT "Ensuring runtime directories and UE5 bridge files are up to date"
-)
+# Post-Build: Copy Shaders, Assets, and Presets next to executable (and inside macOS .app bundle)
+if(APPLE)
+    add_custom_command(TARGET DJVisualizer POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/src/shaders
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/presets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/src/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/presets $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/presets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders $<TARGET_FILE_DIR:DJVisualizer>/src/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/presets $<TARGET_FILE_DIR:DJVisualizer>/presets
+        COMMENT "Bundling HLSL shaders and presets into macOS DJVisualizer.app"
+    )
+else()
+    add_custom_command(TARGET DJVisualizer POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/src/shaders
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/assets/textures
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/presets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders $<TARGET_FILE_DIR:DJVisualizer>/src/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/presets $<TARGET_FILE_DIR:DJVisualizer>/presets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/ue5_bridge $<TARGET_FILE_DIR:DJVisualizer>/ue5_bridge
+        COMMENT "Copying HLSL shaders, presets and bridge files to output directory"
+    )
+endif()

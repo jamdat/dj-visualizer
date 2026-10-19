@@ -1,7 +1,10 @@
-name: Build and Release DJ Visualizer
+name: Build and Release DJ Visualizer (Windows + macOS Apple Silicon)
 
 on:
   push:
+    branches:
+      - main
+      - master
     tags:
       - 'v*'
   workflow_dispatch:
@@ -10,6 +13,9 @@ permissions:
   contents: write
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Windows x64 Standalone Build
+  # ---------------------------------------------------------------------------
   build-windows:
     runs-on: windows-latest
 
@@ -20,31 +26,143 @@ jobs:
       - name: Setup MSVC Toolchain
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Configure CMake
+      - name: Determine Release Version
+        id: version
+        shell: pwsh
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=20
+          if ("${{ github.ref }}" -like "refs/tags/v*") {
+            $ver = "${{ github.ref_name }}"
+          } else {
+            $shortSha = ("${{ github.sha }}").Substring(0, 7)
+            $ver = "v1.0.0-$shortSha"
+          }
+          "VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Build Release Binary
+      - name: Configure CMake (Windows x64)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DDJVISUALIZER_VERSION="${{ env.VERSION }}" -DDJVISUALIZER_GITHUB_REPO="${{ github.repository }}"
+
+      - name: Build Release Binary (Windows x64)
         run: |
           cmake --build build --config Release
 
-      - name: Package Standalone Client Deliverable
+      - name: Package Standalone Windows Deliverable
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/DJVisualizer
-          Copy-Item -Path build/bin/Release/DJVisualizer.exe -Destination dist/DJVisualizer/
-          Copy-Item -Path src/shaders -Destination dist/DJVisualizer/src/ -Recurse
-          Copy-Item -Path assets -Destination dist/DJVisualizer/ -Recurse
-          Copy-Item -Path presets -Destination dist/DJVisualizer/ -Recurse
-          Copy-Item -Path ue5_bridge -Destination dist/DJVisualizer/ -Recurse
-          Copy-Item -Path README.md -Destination dist/DJVisualizer/
-          
-          Compress-Archive -Path dist/DJVisualizer -DestinationPath DJVisualizer-Windows-x64.zip
+          if (Test-Path build/bin/DJVisualizer.exe) {
+            Copy-Item -Path build/bin/DJVisualizer.exe -Destination dist/DJVisualizer/
+          } elseif (Test-Path build/bin/Release/DJVisualizer.exe) {
+            Copy-Item -Path build/bin/Release/DJVisualizer.exe -Destination dist/DJVisualizer/
+          }
+          Copy-Item -Path src/shaders -Destination dist/DJVisualizer/src/ -Recurse -Force
+          if (Test-Path presets) { Copy-Item -Path presets -Destination dist/DJVisualizer/ -Recurse -Force }
+          if (Test-Path README.md) { Copy-Item -Path README.md -Destination dist/DJVisualizer/ -Force }
 
-      - name: Upload Release Asset
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+          Compress-Archive -Path dist/DJVisualizer -DestinationPath DJVisualizer-Windows-x64.zip -Force
+
+      - name: Upload Windows Build Artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: DJVisualizer-Windows-x64.zip
+          name: DJVisualizer-Windows-x64
+          path: DJVisualizer-Windows-x64.zip
+
+  # ---------------------------------------------------------------------------
+  # 2. macOS Apple Silicon (ARM64) Standalone .app Bundle Build
+  # ---------------------------------------------------------------------------
+  build-macos:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Determine Release Version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VER="${{ github.ref_name }}"
+          else
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            VER="v1.0.0-${SHORT_SHA}"
+          fi
+          echo "VERSION=${VER}" >> $GITHUB_ENV
+
+      - name: Configure CMake (macOS Apple Silicon ARM64)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DDJVISUALIZER_VERSION="${{ env.VERSION }}" -DDJVISUALIZER_GITHUB_REPO="${{ github.repository }}"
+
+      - name: Build Release App Bundle (macOS ARM64)
+        run: |
+          cmake --build build --config Release -j4
+
+      - name: Package Standalone macOS Deliverable (.app + 1-Click Gatekeeper Bypass Launcher)
+        run: |
+          mkdir -p dist_mac
+          if [ -d "build/bin/DJVisualizer.app" ]; then
+            cp -R "build/bin/DJVisualizer.app" dist_mac/
+          elif [ -d "build/bin/Release/DJVisualizer.app" ]; then
+            cp -R "build/bin/Release/DJVisualizer.app" dist_mac/
+          fi
+
+          # Ad-hoc code sign the bundle so macOS Apple Silicon executes it cleanly
+          codesign --force --deep --sign - dist_mac/DJVisualizer.app
+
+          # Create 1-click Mac launcher that strips Gatekeeper quarantine and opens the app
+          cat << 'EOF' > dist_mac/Launch_DJVisualizer_Mac.command
+          #!/bin/bash
+          DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+          xattr -cr "$DIR/DJVisualizer.app" 2>/dev/null || true
+          open "$DIR/DJVisualizer.app"
+          EOF
+          chmod +x dist_mac/Launch_DJVisualizer_Mac.command
+
+          cd dist_mac
+          zip -r -y ../DJVisualizer-macOS-arm64.zip DJVisualizer.app Launch_DJVisualizer_Mac.command
+
+      - name: Upload macOS Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DJVisualizer-macOS-arm64
+          path: DJVisualizer-macOS-arm64.zip
+
+  # ---------------------------------------------------------------------------
+  # 3. Publish Combined GitHub Release (Supports In-App Auto-Updater)
+  # ---------------------------------------------------------------------------
+  publish-release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Determine Release Tag
+        id: rel
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            TAG="v1.0.0-${SHORT_SHA}"
+          fi
+          echo "TAG=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.rel.outputs.TAG }}
+          name: "DJ Visualizer ${{ steps.rel.outputs.TAG }} (Windows x64 & macOS Apple Silicon)"
+          body: |
+            ### 🎧 DJ Audio-Reactive Visualizer (${{ steps.rel.outputs.TAG }})
+            - **macOS (Apple Silicon M1/M2/M3/M4)**: Download `DJVisualizer-macOS-arm64.zip`, unzip, and double-click `Launch_DJVisualizer_Mac.command` (or `DJVisualizer.app`).
+            - **Windows (64-bit)**: Download `DJVisualizer-Windows-x64.zip`, unzip, and run `DJVisualizer.exe`.
+            - **Auto-Updates**: Existing installations will automatically detect this release via the **Check Updates / Install Update** button in the top bar.
+          files: |
+            DJVisualizer-Windows-x64.zip
+            DJVisualizer-macOS-arm64.zip
+          prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

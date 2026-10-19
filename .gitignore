@@ -1,20 +1,36 @@
-# Visual Studio / MSVC build output
+# Build & Distribution Output
 build/
 bin/
 out/
 dist/
+dist_mac/
+update_staging/
 .vs/
 *.user
 *.suo
 *.vcxproj.user
+*.cso
 
 # CMake
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
+_deps/
 
-# OS / Temporary
+# Local IDE & Agent Configs (kept private on local machine)
+.vscode/
+.agents/
+.gemini/
+
+# OS / Temporary / Logs
 *.tmp
 *.log
+*.pdb
+*.ilk
 Thumbs.db
 Desktop.ini
+.DS_Store
+
+# Upstream Dear ImGui CI workflows (avoid running in our repo)
+third_party/imgui/.github/
+third_party/imgui/examples/

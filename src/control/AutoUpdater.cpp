@@ -105,8 +105,8 @@ void AutoUpdater::checkForUpdatesAsync() {
                 return;
             }
 
-            auto j = nlohmann::json::parse(jsonStr, nullptr, false);
-            if (j.is_discarded() || !j.contains("tag_name") || !j["tag_name"].is_string()) {
+            auto j = Visualizer::Json::Value::parse(jsonStr);
+            if (!j.is_object() || !j["tag_name"].is_string()) {
                 // No releases published yet
                 std::lock_guard<std::mutex> lock(m_mutex);
                 m_statusMessage = "Up to date (" + m_currentVersion + ")";
@@ -114,19 +114,18 @@ void AutoUpdater::checkForUpdatesAsync() {
                 return;
             }
 
-            std::string tagName = j["tag_name"].get<std::string>();
+            std::string tagName = j["tag_name"].as_string();
 #if defined(__APPLE__)
             std::string targetAsset = "DJVisualizer-macOS-arm64.zip";
 #else
             std::string targetAsset = "DJVisualizer-Windows-x64.zip";
 #endif
             std::string assetUrl;
-            if (j.contains("assets") && j["assets"].is_array()) {
-                for (const auto& asset : j["assets"]) {
-                    if (asset.contains("name") && asset["name"].is_string() &&
-                        asset.contains("browser_download_url") && asset["browser_download_url"].is_string()) {
-                        if (asset["name"].get<std::string>() == targetAsset) {
-                            assetUrl = asset["browser_download_url"].get<std::string>();
+            if (j["assets"].is_array()) {
+                for (const auto& asset : j["assets"].as_array()) {
+                    if (asset["name"].is_string() && asset["browser_download_url"].is_string()) {
+                        if (asset["name"].as_string() == targetAsset) {
+                            assetUrl = asset["browser_download_url"].as_string();
                             break;
                         }
                     }

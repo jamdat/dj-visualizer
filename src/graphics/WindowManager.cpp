@@ -4,10 +4,6 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
-namespace Visualizer::Graphics {
-
-WindowManager* WindowManager::s_instance = nullptr;
-
 #if !defined(__APPLE__)
 PFNGLACTIVETEXTUREPROC        glActiveTexture = nullptr;
 PFNGLCREATESHADERPROC         glCreateShader = nullptr;
@@ -45,7 +41,13 @@ PFNGLGENSAMPLERSPROC          glGenSamplers = nullptr;
 PFNGLDELETESAMPLERSPROC       glDeleteSamplers = nullptr;
 PFNGLBINDSAMPLERPROC          glBindSampler = nullptr;
 PFNGLSAMPLERPARAMETERIPROC    glSamplerParameteri = nullptr;
+#endif
 
+namespace Visualizer::Graphics {
+
+WindowManager* WindowManager::s_instance = nullptr;
+
+#if !defined(__APPLE__)
 bool InitGL33Loader() {
     auto load = [](const char* name) -> void* {
         return reinterpret_cast<void*>(glfwGetProcAddress(name));
