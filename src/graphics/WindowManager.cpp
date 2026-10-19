@@ -34,6 +34,7 @@ PFNGLUSEPROGRAMPROC           glUseProgram = nullptr;
 PFNGLDELETEPROGRAMPROC        glDeleteProgram = nullptr;
 PFNGLGETUNIFORMLOCATIONPROC   glGetUniformLocation = nullptr;
 PFNGLUNIFORM1IPROC            glUniform1i = nullptr;
+PFNGLUNIFORM3FPROC            glUniform3f = nullptr;
 PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = nullptr;
 PFNGLUNIFORMBLOCKBINDINGPROC  glUniformBlockBinding = nullptr;
 PFNGLGENBUFFERSPROC           glGenBuffers = nullptr;
@@ -54,6 +55,10 @@ PFNGLGENSAMPLERSPROC          glGenSamplers = nullptr;
 PFNGLDELETESAMPLERSPROC       glDeleteSamplers = nullptr;
 PFNGLBINDSAMPLERPROC          glBindSampler = nullptr;
 PFNGLSAMPLERPARAMETERIPROC    glSamplerParameteri = nullptr;
+PFNGLENABLEVERTEXATTRIBARRAYPROC  glEnableVertexAttribArray = nullptr;
+PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray = nullptr;
+PFNGLVERTEXATTRIBPOINTERPROC      glVertexAttribPointer = nullptr;
+PFNGLUNIFORMMATRIX4FVPROC         glUniformMatrix4fv = nullptr;
 #endif
 
 namespace Visualizer::Graphics {
@@ -81,6 +86,7 @@ bool InitGL33Loader() {
     glDeleteProgram        = reinterpret_cast<PFNGLDELETEPROGRAMPROC>(load("glDeleteProgram"));
     glGetUniformLocation   = reinterpret_cast<PFNGLGETUNIFORMLOCATIONPROC>(load("glGetUniformLocation"));
     glUniform1i            = reinterpret_cast<PFNGLUNIFORM1IPROC>(load("glUniform1i"));
+    glUniform3f            = reinterpret_cast<PFNGLUNIFORM3FPROC>(load("glUniform3f"));
     glGetUniformBlockIndex = reinterpret_cast<PFNGLGETUNIFORMBLOCKINDEXPROC>(load("glGetUniformBlockIndex"));
     glUniformBlockBinding  = reinterpret_cast<PFNGLUNIFORMBLOCKBINDINGPROC>(load("glUniformBlockBinding"));
     glGenBuffers           = reinterpret_cast<PFNGLGENBUFFERSPROC>(load("glGenBuffers"));
@@ -101,6 +107,10 @@ bool InitGL33Loader() {
     glDeleteSamplers       = reinterpret_cast<PFNGLDELETESAMPLERSPROC>(load("glDeleteSamplers"));
     glBindSampler          = reinterpret_cast<PFNGLBINDSAMPLERPROC>(load("glBindSampler"));
     glSamplerParameteri    = reinterpret_cast<PFNGLSAMPLERPARAMETERIPROC>(load("glSamplerParameteri"));
+    glEnableVertexAttribArray  = reinterpret_cast<PFNGLENABLEVERTEXATTRIBARRAYPROC>(load("glEnableVertexAttribArray"));
+    glDisableVertexAttribArray = reinterpret_cast<PFNGLDISABLEVERTEXATTRIBARRAYPROC>(load("glDisableVertexAttribArray"));
+    glVertexAttribPointer      = reinterpret_cast<PFNGLVERTEXATTRIBPOINTERPROC>(load("glVertexAttribPointer"));
+    glUniformMatrix4fv         = reinterpret_cast<PFNGLUNIFORMMATRIX4FVPROC>(load("glUniformMatrix4fv"));
 
     return glCreateProgram != nullptr && glGenFramebuffers != nullptr && glGenVertexArrays != nullptr;
 }
@@ -176,6 +186,7 @@ void WindowManager::loadWindowConfig() {
         m_controlPosY = root["controlPosY"].as_int(100);
         m_isMaximized = root["isMaximized"].as_bool(false);
         m_uiScale = std::clamp(root["uiScale"].as_float(1.0f), 0.75f, 3.0f);
+        m_targetFps = root["targetFps"].as_int(144);
     } catch (...) {
         // Fallback to default window configuration on parse error
     }
@@ -191,6 +202,7 @@ void WindowManager::saveWindowConfig() {
         root["controlPosY"] = m_controlPosY;
         root["isMaximized"] = m_isMaximized;
         root["uiScale"] = m_uiScale;
+        root["targetFps"] = m_targetFps;
 
         std::ofstream file(configPath);
         if (file.is_open()) {

@@ -120,7 +120,6 @@ bool PresetManager::savePreset(const VisualizerPreset& preset) {
     root["pyramidPattern"] = preset.pyramidPattern;
     root["logoStyle"] = preset.logoStyle;
     root["paletteIndex"] = preset.paletteIndex;
-    root["halloweenMode"] = preset.halloweenMode;
     root["masterBrightness"] = preset.masterBrightness;
     root["customText"] = preset.customText;
 
@@ -160,7 +159,6 @@ bool PresetManager::loadPreset(const std::string& presetName, VisualizerPreset& 
     outPreset.pyramidPattern = root["pyramidPattern"].as_int(0);
     outPreset.logoStyle = root["logoStyle"].as_int(0);
     outPreset.paletteIndex = root["paletteIndex"].as_int(0);
-    outPreset.halloweenMode = root["halloweenMode"].as_bool(false);
     outPreset.masterBrightness = root["masterBrightness"].as_float(0.85f);
     outPreset.customText = root["customText"].as_string("DAD PUNK");
 
@@ -217,8 +215,7 @@ VisualizerPreset PresetManager::createSpookyPunkPreset() {
     p.skyMultiplier = 1.0f;
     p.particleMultiplier = 1.2f;
     p.pyramidPattern = 1; // Rising chevrons
-    p.paletteIndex = 2;   // Halloween
-    p.halloweenMode = true;
+    p.paletteIndex = 2;
     p.masterBrightness = 0.85f;
     p.customText = "DAD PUNK";
     return p;

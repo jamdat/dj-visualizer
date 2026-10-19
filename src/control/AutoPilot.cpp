@@ -6,6 +6,8 @@ namespace Visualizer::Control {
 
 AutoPilot::AutoPilot() {
     initScenes();
+    m_director.currentScene = 4; // DAD PUNK Hero default
+    m_director.targetScene = 4;
 }
 
 void AutoPilot::initScenes() {
@@ -76,12 +78,12 @@ void AutoPilot::initScenes() {
         SceneDefinition s;
         s.name = "DAD PUNK Hero";
         s.icon = "🤖";
-        s.logoWeight = 1.35f;       // Massive center logo
-        s.pyramidWeight = 0.7f;
-        s.laserIntensity = 1.2f;
-        s.floorLayerWeight = 1.0f;
-        s.skyLayerWeight = 0.6f;
-        s.particleIntensity = 0.8f;
+        s.logoWeight = 1.0f;        // Hero text centerpiece
+        s.pyramidWeight = 0.0f;     // OFF
+        s.laserIntensity = 0.0f;    // OFF
+        s.floorLayerWeight = 0.15f; // Subtle grounding floor grid
+        s.skyLayerWeight = 0.0f;    // OFF
+        s.particleIntensity = 0.0f; // OFF
         s.defaultPalette = 0;       // Daft Red/Gold
         m_scenes.push_back(s);
     }
@@ -237,28 +239,31 @@ void AutoPilot::resolveGpuParams(
         return a + (b - a) * easeT;
     };
 
-    // A. Mix composable layer weights with user multipliers
-    outParams.PyramidWeight = mixVal(sCurr.pyramidWeight, sTarg.pyramidWeight) * m_user.pyramidMultiplier;
-    outParams.LogoWeight = mixVal(sCurr.logoWeight, sTarg.logoWeight) * m_user.logoMultiplier;
-    outParams.LaserIntensity = mixVal(sCurr.laserIntensity, sTarg.laserIntensity) * m_user.laserMultiplier;
-    outParams.FloorLayerWeight = mixVal(sCurr.floorLayerWeight, sTarg.floorLayerWeight) * m_user.floorMultiplier;
-    outParams.SkyLayerWeight = mixVal(sCurr.skyLayerWeight, sTarg.skyLayerWeight) * m_user.skyMultiplier;
-    outParams.ParticleIntensity = mixVal(sCurr.particleIntensity, sTarg.particleIntensity) * m_user.particleMultiplier;
-    outParams.TrailsWeight = mixVal(sCurr.trailsWeight, sTarg.trailsWeight);
+    // A. Master Layer Weights with Direct ON/OFF Control
+    outParams.LogoWeight = m_user.heroTextEnabled ? m_user.heroTextLevel : 0.0f;
+    outParams.PyramidWeight = m_user.triangleEnabled ? m_user.triangleLevel : 0.0f;
+    outParams.LaserIntensity = m_user.lasersEnabled ? m_user.lasersLevel : 0.0f;
+    outParams.FloorLayerWeight = m_user.gridEnabled ? m_user.gridLevel : 0.0f;
+    outParams.SkyLayerWeight = m_user.sunEnabled ? m_user.sunLevel : 0.0f;
+    outParams.ParticleIntensity = m_user.particlesEnabled ? m_user.particlesLevel : 0.0f;
+    outParams.TrailsWeight = (m_user.gridEnabled && m_user.speedLinesEnabled) ? m_user.speedLinesLevel : 0.0f;
+    outParams.SpookyWeight = m_user.vignetteEnabled ? m_user.vignetteLevel : 0.0f; // Global Vignette Weight
     outParams.LedWallWeight = mixVal(sCurr.ledWallWeight, sTarg.ledWallWeight);
     outParams.HorizonWeight = mixVal(sCurr.horizonWeight, sTarg.horizonWeight);
 
-    // Spooky weight: mix scene target and override if Halloween Mode is active
-    float mixedSpooky = mixVal(sCurr.spookyWeight, sTarg.spookyWeight);
-    if (m_user.halloweenMode) {
-        mixedSpooky = (std::max)(mixedSpooky, 1.0f);
-    }
-    outParams.SpookyWeight = mixedSpooky;
-
     // Pattern & style modes
-    outParams.PyramidPattern = (m_user.pyramidPattern != 0) ? m_user.pyramidPattern : sTarg.defaultPattern;
+    outParams.PyramidPattern = m_user.pyramidPattern;
     outParams.LogoStyle = m_user.logoStyle;
     outParams.ShapeCrossfade = easeT;
+
+    // Environment & Celestial customization
+    outParams.CustomParam0 = (m_user.gridEnabled && m_user.gridObjectsEnabled) ? (m_user.mountainWaveHeight * m_user.gridObjectsLevel) : 0.0f;
+    outParams.CustomParam1 = static_cast<float>(m_user.celestialMode);
+    outParams.CustomParam2 = m_user.logoScale;
+    outParams.CustomParam3 = m_user.octahedronCoreEnabled ? 1.0f : 0.0f; // Octahedron Core Toggle
+    outParams.CustomParam4 = m_user.logoPosY;
+    outParams.CustomParam5 = m_user.useAuthenticLogo ? 1.0f : 0.0f;
+    outParams.CustomParam7 = static_cast<float>(m_user.fontFace); // 0=Neon Sans, 1=Ryga, 2=Raster Forge, 3=Atari Classic
 
     // B. Palette Colors (5 DJ Concert Palettes)
     static const Graphics::Float4 palettes[5][3] = {

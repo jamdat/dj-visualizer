@@ -14,7 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Version & GitHub Repository metadata for Auto-Updater
 if(NOT DEFINED DJVISUALIZER_VERSION)
-    set(DJVISUALIZER_VERSION "v1.0.1")
+    set(DJVISUALIZER_VERSION "v1.0.2")
 endif()
 if(NOT DEFINED DJVISUALIZER_GITHUB_REPO)
     set(DJVISUALIZER_GITHUB_REPO "jamdat/dj-visualizer")
@@ -79,6 +79,8 @@ set(SOURCES
     src/graphics/WindowManager.cpp
     src/graphics/D3D11Renderer.h
     src/graphics/D3D11Renderer.cpp
+    src/graphics/Mesh3D.h
+    src/graphics/Mesh3D.cpp
 
     # Control
     src/control/PresetManager.h
@@ -163,20 +165,24 @@ endif()
 if(APPLE)
     add_custom_command(TARGET DJVisualizer POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/src/shaders
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/assets
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/presets
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/src/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/assets
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/presets $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Resources/presets
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders $<TARGET_FILE_DIR:DJVisualizer>/src/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:DJVisualizer>/assets
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/presets $<TARGET_FILE_DIR:DJVisualizer>/presets
-        COMMENT "Bundling HLSL shaders and presets into macOS DJVisualizer.app"
+        COMMENT "Bundling HLSL shaders, assets, and presets into macOS DJVisualizer.app"
     )
 else()
     add_custom_command(TARGET DJVisualizer POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/src/shaders
-        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/assets/textures
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/assets
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/presets
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders $<TARGET_FILE_DIR:DJVisualizer>/src/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:DJVisualizer>/assets
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/presets $<TARGET_FILE_DIR:DJVisualizer>/presets
-        COMMENT "Copying HLSL shaders and presets to output directory"
+        COMMENT "Copying HLSL shaders, assets, and presets to output directory"
     )
 endif()

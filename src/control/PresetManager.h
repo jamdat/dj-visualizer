@@ -22,7 +22,6 @@ struct VisualizerPreset {
     int pyramidPattern = 0;
     int logoStyle = 0;
     int paletteIndex = 0;
-    bool halloweenMode = false;
     float masterBrightness = 0.85f;
     std::string customText = "DAD PUNK";
 

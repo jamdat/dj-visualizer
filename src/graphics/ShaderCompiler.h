@@ -31,6 +31,9 @@ public:
     // Load and compile a pixel shader from .hlsl file into an OpenGL 3.3 Program
     bool loadPixelShader(const std::string& shaderName, const std::string& filePath, GLuint* outProgram = nullptr);
 
+    // Load and compile 3D mesh vertex + fragment shader program
+    GLuint loadMeshShaderProgram(const std::string& vsPath, const std::string& fsPath);
+
     // Check all tracked shaders for file modifications and hot-reload them
     bool checkForHotReload(std::string& outReloadedName, std::string& outError);
 

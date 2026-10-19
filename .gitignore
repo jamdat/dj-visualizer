@@ -37,3 +37,6 @@ window_config.json
 # Upstream Dear ImGui CI workflows (avoid running in our repo)
 third_party/imgui/.github/
 third_party/imgui/examples/
+imgui.ini
+__pycache__/
+*.pyc

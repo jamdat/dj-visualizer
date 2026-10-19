@@ -222,6 +222,22 @@ static int RunVisualizerApp() {
 
             // 4. Present Frame
             renderer.endFrame(dashboard.isVsyncEnabled());
+
+            // 5. High-Precision Frame Rate Limiter (60, 90, 120, 144 FPS)
+            int targetFps = dashboard.getTargetFps();
+            if (targetFps > 0 && !dashboard.isVsyncEnabled()) {
+                double targetFrameSec = 1.0 / static_cast<double>(targetFps);
+                auto elapsedSec = std::chrono::duration<double>(std::chrono::steady_clock::now() - currTime).count();
+                double remainingSec = targetFrameSec - elapsedSec;
+                if (remainingSec > 0.0015) {
+                    std::this_thread::sleep_for(std::chrono::duration<double>(remainingSec - 0.0012));
+                }
+                while (std::chrono::duration<double>(std::chrono::steady_clock::now() - currTime).count() < targetFrameSec) {
+#if defined(_WIN32)
+                    YieldProcessor();
+#endif
+                }
+            }
         }
 
         // Cleanup

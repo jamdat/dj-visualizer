@@ -1,13 +1,66 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../../third_party/stb/stb_image.h"
 #include "TextureManager.h"
+#include "../core/Logger.h"
 #include <iostream>
 #include <vector>
 #include <cmath>
 #include <random>
 #include <algorithm>
 
+#if defined(_WIN32)
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+    #include <windows.h>
+#elif defined(__APPLE__)
+    #include <mach-o/dyld.h>
+#endif
+
 namespace Visualizer::Graphics {
+
+static std::filesystem::path GetBaseAppDir() {
+#if defined(_WIN32)
+    wchar_t exePathBuf[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, exePathBuf, MAX_PATH);
+    return std::filesystem::path(exePathBuf).parent_path();
+#elif defined(__APPLE__)
+    char pathBuf[4096];
+    uint32_t size = sizeof(pathBuf);
+    if (_NSGetExecutablePath(pathBuf, &size) == 0) {
+        std::filesystem::path exeDir = std::filesystem::weakly_canonical(std::filesystem::path(pathBuf)).parent_path();
+        std::error_code ec;
+        if (std::filesystem::exists(exeDir / "../Resources/assets", ec)) {
+            return std::filesystem::weakly_canonical(exeDir / "../Resources", ec);
+        }
+        return exeDir;
+    }
+    return std::filesystem::current_path();
+#else
+    return std::filesystem::current_path();
+#endif
+}
+
+static std::filesystem::path ResolveAssetPath(const std::string& relPath) {
+    std::vector<std::filesystem::path> candidates;
+    candidates.push_back(std::filesystem::current_path() / relPath);
+    std::filesystem::path baseDir = GetBaseAppDir();
+    candidates.push_back(baseDir / relPath);
+    candidates.push_back(baseDir / "assets" / relPath);
+    candidates.push_back(baseDir.parent_path() / relPath);
+    candidates.push_back(baseDir.parent_path().parent_path() / relPath);
+
+    std::error_code ec;
+    for (const auto& p : candidates) {
+        if (std::filesystem::exists(p, ec)) {
+            return std::filesystem::weakly_canonical(p, ec);
+        }
+    }
+    return "";
+}
 
 TextureManager::TextureManager(void* /*device*/, void* /*context*/) {
     m_audioBuffer.resize(512 * 2, 0.0f);
@@ -92,26 +145,46 @@ void TextureManager::generateDefaultProceduralTextures() {
         m_textures["noise"] = { tex, w, h, 4, "", {} };
     }
 
-    // 2. Daft Punk Alive Logo Mask (256x256 RGBA)
+    // 2. Daft Punk Authentic Logo Mask & SDF (1024x256 RGBA)
     {
-        int w = 256, h = 256;
-        std::vector<uint32_t> pixels(w * h, 0);
-
-        for (int y = 0; y < h; ++y) {
-            float ny = 1.0f - static_cast<float>(y) / static_cast<float>(h);
-            for (int x = 0; x < w; ++x) {
-                float nx = (static_cast<float>(x) / static_cast<float>(w)) * 2.0f - 1.0f;
-                float halfWidth = (1.0f - ny) * 0.85f;
-                bool insidePyramid = (std::abs(nx) <= halfWidth) && (ny >= 0.1f && ny <= 0.9f);
-                bool edgePyramid = insidePyramid && (std::abs(std::abs(nx) - halfWidth) < 0.035f || ny < 0.13f);
-
-                uint8_t val = edgePyramid ? 255 : (insidePyramid ? 60 : 0);
-                uint8_t a = insidePyramid ? 255 : 0;
-                pixels[y * w + x] = (a << 24) | (val << 16) | (val << 8) | val;
-            }
+        bool loaded = loadTexture("logo", "assets/textures/dad_punk_logo.tga");
+        if (!loaded) {
+            loaded = loadTexture("logo", "assets/textures/dad_punk_logo.png");
         }
-        GLuint tex = createRGBA8Texture(w, h, pixels.data(), false);
-        m_textures["logo"] = { tex, w, h, 4, "", {} };
+        if (!loaded) {
+            loaded = loadTexture("logo", "assets/textures/daft_punk_brush.png");
+        }
+
+        if (!loaded) {
+            Visualizer::Log("[TextureManager] Generating in-memory procedural DAD PUNK SDF fallback (1024x256)");
+            int w = 1024, h = 256;
+            std::vector<uint32_t> pixels(w * h, 0);
+
+            // Bold, solid horizontal "DAD PUNK" blocks with rounded bevel SDF (never a triangle!)
+            for (int y = 0; y < h; ++y) {
+                float ny = static_cast<float>(y) / static_cast<float>(h);
+                float centerY = std::abs(ny - 0.5f) * 2.0f; // 0 at center, 1 at top/bottom
+
+                for (int x = 0; x < w; ++x) {
+                    float nx = static_cast<float>(x) / static_cast<float>(w);
+                    float seg = nx * 8.0f;
+                    int charIdx = static_cast<int>(seg);
+                    float charU = (seg - charIdx); // 0..1 in character box
+
+                    bool isText = (charIdx != 3) && (centerY < 0.65f) && (charU > 0.15f && charU < 0.85f);
+                    float dEdge = isText ? (0.65f - centerY) : -1.0f;
+
+                    uint8_t a = isText ? 255 : 0;
+                    uint8_t sdf = static_cast<uint8_t>(std::clamp(128.0f + dEdge * 180.0f, 0.0f, 255.0f));
+                    uint8_t bevel = isText ? static_cast<uint8_t>(std::clamp(dEdge * 350.0f, 0.0f, 255.0f)) : 0;
+                    uint8_t rim = (bevel > 30 && bevel < 220) ? 255 : 0;
+
+                    pixels[y * w + x] = (a << 24) | (rim << 16) | (bevel << 8) | sdf;
+                }
+            }
+            GLuint tex = createRGBA8Texture(w, h, pixels.data(), false);
+            m_textures["logo"] = { tex, w, h, 4, "", {} };
+        }
     }
 
     // 3. Neon Color Ramp LUT (256x1 RGBA)
@@ -165,38 +238,57 @@ void TextureManager::generateDefaultProceduralTextures() {
         GLuint tex = createRGBA8Texture(w, h, pixels.data(), false);
         m_textures["dirt"] = { tex, w, h, 4, "", {} };
     }
+
+    // 5. Multi-Font Concert Atlas (1024x1536 RGBA: Neon Sans, Ryga, Raster Forge, Atari Classic)
+    {
+        bool loaded = loadTexture("font_atlas", "assets/textures/font_atlas.tga");
+        if (!loaded) {
+            loaded = loadTexture("font_atlas", "assets/textures/font_atlas.png");
+        }
+        if (!loaded) {
+            Visualizer::Log("[TextureManager] Font atlas texture not found: assets/textures/font_atlas.tga");
+        }
+    }
 }
 
 bool TextureManager::loadTexture(const std::string& slotName, const std::string& filePath) {
-    std::error_code ec;
-    if (!std::filesystem::exists(filePath, ec)) return false;
+    std::filesystem::path resolved = ResolveAssetPath(filePath);
+    if (resolved.empty()) {
+        Visualizer::Log("[TextureManager] Asset not found in search paths: " + filePath);
+        return false;
+    }
 
     int w = 0, h = 0, channels = 0;
-    stbi_uc* data = stbi_load(filePath.c_str(), &w, &h, &channels, 4);
+    stbi_uc* data = stbi_load(resolved.string().c_str(), &w, &h, &channels, 4);
     if (!data) {
-        std::cerr << "Failed to load texture file: " << filePath << std::endl;
+        Visualizer::Log("[TextureManager] stbi_load failed for: " + resolved.string());
         return false;
     }
 
     GLuint tex = createRGBA8Texture(w, h, data, false);
     stbi_image_free(data);
 
-    if (!tex) return false;
+    if (!tex) {
+        Visualizer::Log("[TextureManager] createRGBA8Texture failed for: " + resolved.string());
+        return false;
+    }
 
     auto it = m_textures.find(slotName);
     if (it != m_textures.end() && it->second.texture) {
         glDeleteTextures(1, &it->second.texture);
     }
 
+    std::error_code ec;
     TextureResource res;
     res.texture = tex;
     res.width = w;
     res.height = h;
     res.channels = channels;
-    res.filePath = filePath;
-    res.lastModified = std::filesystem::last_write_time(filePath, ec);
+    res.filePath = resolved.string();
+    res.lastModified = std::filesystem::last_write_time(resolved, ec);
 
     m_textures[slotName] = res;
+    Visualizer::Log("[TextureManager] Loaded '" + slotName + "' (" + std::to_string(w) + "x" + std::to_string(h) + ") from: " + resolved.string());
     return true;
 }
 
@@ -232,15 +324,16 @@ std::vector<std::string> TextureManager::getLoadedTextureNames() const {
 }
 
 void TextureManager::bindAll(void* /*context*/) {
-    GLuint texs[5] = {
+    GLuint texs[6] = {
         m_audioTexture,
         getTextureSRV("noise"),
         getTextureSRV("logo"),
         getTextureSRV("lut"),
-        getTextureSRV("dirt")
+        getTextureSRV("dirt"),
+        getTextureSRV("font_atlas")
     };
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 6; ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
         glBindTexture(GL_TEXTURE_2D, texs[i]);
     }

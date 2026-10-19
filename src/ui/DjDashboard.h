@@ -44,15 +44,16 @@ public:
     float getUiScale() const { return m_uiScale; }
     void setUiScale(float scale) { m_uiScale = scale; }
     bool isVsyncEnabled() const { return m_vsync; }
+    int getTargetFps() const { return m_targetFps; }
+    void setTargetFps(int fps) { m_targetFps = fps; }
 
     void triggerSpacebarDrop();
 
 private:
     void renderHeaderBar();
     void renderTopStatusBar(float deltaTime);
-    void renderMoodButtons();
-    void renderTextAndPalettePanel();
-    void renderKidSafeAndLayerControls();
+    void renderVisualMixerPanel();
+    void renderConsolidatedDetailsPanel();
     void renderAudioSpectrumPanel();
     void renderProjectorOutputPanel();
     void renderLivePreview();
@@ -84,6 +85,9 @@ private:
     int m_selectedScaleIndex = 0;
     float m_silentWarningTimer = 0.0f;
     bool m_showUpdateConfirmModal = false;
+    int m_targetFps = 144;
+    int m_fpsLimitIndex = 3;
+    int m_selectedIngredient = 0; // 0=HeroText, 1=Vignette, 2=Triangle, 3=Lasers, 4=Particles, 5=Grid, 6=Sun, 7=Palettes
 };
 
 } // namespace Visualizer::UI

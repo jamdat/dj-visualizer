@@ -12,14 +12,42 @@ namespace Visualizer::Control {
 struct UserSettings {
     float masterBrightness = 0.85f;    // Kid-safe 85% default cap
     char customText[17] = "DAD PUNK";  // 16 chars + null terminator
-    int paletteIndex = 0;              // 0: Daft Red/Gold, 1: TRON Cyan/Orange, 2: Halloween, 3: Chrome, 4: Rainbow
-    bool halloweenMode = false;        // Spooky FX override
+    int paletteIndex = 0;              // 0: Daft Red/Gold, 1: TRON Cyan/Orange, 2: Club Cyber, 3: Chrome, 4: Rainbow
 
     // Manual scene selection (-1 = Auto, 0..5 = Scene 1..6)
     int manualScene = -1;
     float manualHoldTimer = 0.0f;      // 30s countdown
 
-    // Fine-tune layer weight multipliers
+    // --- Master Layer ON/OFF Switches & Intensities ---
+    bool heroTextEnabled = true;
+    float heroTextLevel = 1.0f;
+
+    bool triangleEnabled = false; // Off by default
+    float triangleLevel = 1.0f;
+    bool octahedronCoreEnabled = true;
+
+    bool sunEnabled = true;
+    float sunLevel = 0.85f;
+
+    bool gridEnabled = true;
+    float gridLevel = 1.0f;
+
+    bool gridObjectsEnabled = true; // Edge crystals & mountain waves
+    float gridObjectsLevel = 0.65f;
+
+    bool speedLinesEnabled = false; // Off by default
+    float speedLinesLevel = 0.45f;
+
+    bool lasersEnabled = false;     // Off by default
+    float lasersLevel = 1.0f;
+
+    bool particlesEnabled = true;
+    float particlesLevel = 0.60f;
+
+    bool vignetteEnabled = true;
+    float vignetteLevel = 1.0f;
+
+    // Legacy multiplier fallbacks for scene transitions
     float pyramidMultiplier = 1.0f;
     float logoMultiplier = 1.0f;
     float laserMultiplier = 1.0f;
@@ -28,7 +56,13 @@ struct UserSettings {
     float particleMultiplier = 1.0f;
 
     int pyramidPattern = 0;            // 0=VU Strips, 1=Chevrons, 2=Sweep, 3=Solid, 4=Rainbow
-    int logoStyle = 0;                 // 0=LED Dot-Matrix, 1=Chrome Bevel
+    int logoStyle = 1;                 // 0: Chrome, 1: Faceted 3D Crystal Mesh, 2: Neon Outline
+    int fontFace = 0;                  // 0: Neon Sans, 1: Ryga, 2: Raster Forge, 3: Atari Classic
+    int celestialMode = 0;             // 0: Black Hole Eclipse, 1: Neon Portal Ring, 2: Digital Cyber Moon
+    float mountainWaveHeight = 0.65f;  // 0.0: Flat TRON grid, >0.0: Rolling wireframe mountain waves
+    float logoScale = 2.0f;            // 0.5x to 3.5x massive centerpiece (default 2.0x)
+    float logoPosY = 0.18f;            // -0.6 to +0.8 vertical position (default +0.18)
+    bool useAuthenticLogo = true;      // true: authentic Daft Punk 3D Mesh
 };
 
 struct SceneDefinition {

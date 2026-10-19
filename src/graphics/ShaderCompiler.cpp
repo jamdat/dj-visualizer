@@ -249,15 +249,16 @@ void ShaderCompiler::configureProgramBindings(GLuint program) {
     }
 
     glUseProgram(program);
-    const char* texNames[6] = {
+    const char* texNames[7] = {
         "AudioDataTexture",
         "NoiseTexture",
         "LogoTexture",
         "ColorLUT",
         "LensDirtTexture",
+        "FontAtlasTexture",
         "SceneTexture"
     };
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 7; ++i) {
         GLint loc = glGetUniformLocation(program, texNames[i]);
         if (loc >= 0) {
             glUniform1i(loc, i);
@@ -294,6 +295,62 @@ GLuint ShaderCompiler::createPassthroughPixelShader() {
     configureProgramBindings(prog);
     m_passthroughProgram = prog;
     return m_passthroughProgram;
+}
+
+GLuint ShaderCompiler::loadMeshShaderProgram(const std::string& vsPath, const std::string& fsPath) {
+    std::string actualVS = FindShaderFile(vsPath);
+    std::string actualFS = FindShaderFile(fsPath);
+
+    std::ifstream fVS(actualVS);
+    if (!fVS.is_open()) {
+        Log("[ERROR] Failed to open mesh vertex shader: " + actualVS);
+        return 0;
+    }
+    std::string vsSource((std::istreambuf_iterator<char>(fVS)), std::istreambuf_iterator<char>());
+
+    std::ifstream fFS(actualFS);
+    if (!fFS.is_open()) {
+        Log("[ERROR] Failed to open mesh fragment shader: " + actualFS);
+        return 0;
+    }
+    std::string fsSource((std::istreambuf_iterator<char>(fFS)), std::istreambuf_iterator<char>());
+
+    std::string err;
+    GLuint vs = CompileGLShaderStage(GL_VERTEX_SHADER, vsSource, err);
+    if (!vs) {
+        Log("[ERROR] Mesh Vertex Shader compilation failed: " + err);
+        return 0;
+    }
+
+    GLuint fs = CompileGLShaderStage(GL_FRAGMENT_SHADER, fsSource, err);
+    if (!fs) {
+        Log("[ERROR] Mesh Fragment Shader compilation failed: " + err);
+        glDeleteShader(vs);
+        return 0;
+    }
+
+    GLuint prog = glCreateProgram();
+    glAttachShader(prog, vs);
+    glAttachShader(prog, fs);
+    glLinkProgram(prog);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    GLint linked = 0;
+    glGetProgramiv(prog, GL_LINK_STATUS, &linked);
+    if (!linked) {
+        GLint logLen = 0;
+        glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &logLen);
+        std::string infoLog(logLen > 0 ? logLen : 1, '\0');
+        glGetProgramInfoLog(prog, logLen, nullptr, infoLog.data());
+        Log("[ERROR] Mesh shader program link failed: " + infoLog);
+        glDeleteProgram(prog);
+        return 0;
+    }
+
+    configureProgramBindings(prog);
+    Log("[ShaderCompiler] Successfully compiled & linked 3D Mesh Shader Program");
+    return prog;
 }
 
 bool ShaderCompiler::compilePixelShaderInternal(

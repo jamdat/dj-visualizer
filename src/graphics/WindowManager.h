@@ -66,6 +66,8 @@ public:
 
     float getUiScale() const { return m_uiScale; }
     void setUiScale(float scale) { m_uiScale = scale; saveWindowConfig(); }
+    int getTargetFps() const { return m_targetFps; }
+    void setTargetFps(int fps) { m_targetFps = fps; saveWindowConfig(); }
     bool wasMaximizedSaved() const { return m_isMaximized; }
 
 private:
@@ -85,6 +87,7 @@ private:
     int m_controlPosY = 100;
     bool m_isMaximized = false;
     float m_uiScale = 1.0f;
+    int m_targetFps = 144;
 
     int m_stageWidth = 1920;
     int m_stageHeight = 1080;

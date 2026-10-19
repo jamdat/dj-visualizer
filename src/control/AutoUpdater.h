@@ -6,7 +6,7 @@
 #include <mutex>
 
 #ifndef DJVISUALIZER_VERSION
-#define DJVISUALIZER_VERSION "v1.0.1"
+#define DJVISUALIZER_VERSION "v1.0.2"
 #endif
 
 #ifndef DJVISUALIZER_GITHUB_REPO

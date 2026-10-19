@@ -87,7 +87,8 @@ Texture2D NoiseTexture     : register(t1);  // Perlin / Blue noise
 Texture2D LogoTexture      : register(t2);  // Logo / Alpha mask
 Texture2D ColorLUT         : register(t3);  // 1D/2D Neon Color Ramp
 Texture2D LensDirtTexture  : register(t4);  // Optical dirt / flare
-Texture2D SceneTexture     : register(t5);  // Post-process input buffer
+Texture2D FontAtlasTexture : register(t5);  // Multi-font concert atlas (Neon Sans, Ryga, Raster Forge, Atari Classic)
+Texture2D SceneTexture     : register(t6);  // Post-process input buffer
 
 // Sampler Registers
 SamplerState SamplerLinearClamp : register(s0);

@@ -82,6 +82,19 @@ bool DjDashboard::initialize(GLFWwindow* window, void* /*device*/, void* /*conte
 
         if (m_windowManager) {
             m_uiScale = m_windowManager->getUiScale();
+            m_targetFps = m_windowManager->getTargetFps();
+            if (m_targetFps == 60) m_fpsLimitIndex = 0;
+            else if (m_targetFps == 90) m_fpsLimitIndex = 1;
+            else if (m_targetFps == 120) m_fpsLimitIndex = 2;
+            else if (m_targetFps == 144) m_fpsLimitIndex = 3;
+            else { m_fpsLimitIndex = 4; m_targetFps = 0; }
+
+            // Automatic Coordination: if an FPS limit is active, disable VSync
+            if (m_targetFps > 0) {
+                m_vsync = false;
+            } else {
+                m_vsync = true;
+            }
         }
 
         m_appliedUiScale = m_uiScale;
@@ -223,13 +236,11 @@ void DjDashboard::render(
     float leftColWidth = contentSize.x * 0.52f;
     float rightColWidth = contentSize.x - leftColWidth - ImGui::GetStyle().ItemSpacing.x;
 
-    // LEFT COLUMN: Mood scenes, Logo text, Palettes, and Kid-Safe controls
+    // LEFT COLUMN: Visual Ingredients Mixer & Consolidated Details Panel
     ImGui::BeginChild("LeftControlsPanel", ImVec2(leftColWidth, contentSize.y), false);
-    renderMoodButtons();
+    renderVisualMixerPanel();
     ImGui::Spacing();
-    renderTextAndPalettePanel();
-    ImGui::Spacing();
-    renderKidSafeAndLayerControls();
+    renderConsolidatedDetailsPanel();
     ImGui::EndChild();
 
     ImGui::SameLine();
@@ -307,7 +318,7 @@ void DjDashboard::renderHeaderBar() {
         ImGui::EndPopup();
     }
 
-    float rightAreaWidth = 520.0f * m_uiScale;
+    float rightAreaWidth = 640.0f * m_uiScale;
     float winWidth = ImGui::GetWindowWidth();
     if (winWidth > rightAreaWidth + 300.0f) {
         ImGui::SameLine(winWidth - rightAreaWidth);
@@ -351,12 +362,35 @@ void DjDashboard::renderHeaderBar() {
     ImGui::SameLine();
 
 #if defined(__APPLE__)
-    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "[Apple Silicon arm64]");
+    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "[Apple Silicon]");
 #else
-    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "[Win64 GL3.3 Core]");
+    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "[Win64 GL3.3]");
 #endif
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.9f, 1.0f), "%.0f FPS", m_fps);
+    ImGui::SameLine();
+
+    // FPS Limiter Dropdown: 60, 90, 120, 144, Unlimited
+    static const int kFpsLimits[] = { 60, 90, 120, 144, 0 };
+    static const char* kFpsLimitLabels[] = { "60 FPS", "90 FPS", "120 FPS", "144 FPS", "Unlimited" };
+
+    ImGui::SetNextItemWidth(108.0f * m_uiScale);
+    if (ImGui::Combo("##FpsLimiter", &m_fpsLimitIndex, kFpsLimitLabels, 5)) {
+        m_targetFps = kFpsLimits[m_fpsLimitIndex];
+        if (m_windowManager) {
+            m_windowManager->setTargetFps(m_targetFps);
+        }
+        // Automatic Coordination: selecting an FPS limit disables VSync
+        if (m_targetFps > 0) {
+            m_vsync = false;
+        } else {
+            m_vsync = true;
+        }
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Frame Rate Limiter: 60, 90, 120, 144 FPS, or Unlimited (Persisted to config)");
+    }
+
     ImGui::SameLine();
     ImGui::Checkbox("VSync", &m_vsync);
 }
@@ -394,27 +428,18 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
 
     ImGui::SameLine();
 
-    // 3. Current Scene Display & Countdown
-    int curSceneIdx = m_autoPilot->getCurrentSceneIndex();
-    std::string curName = m_autoPilot->getCurrentSceneName();
-    bool isHold = m_autoPilot->isManualHold();
-    float timeLeft = m_autoPilot->getTimeRemainingInScene();
-
+    // 3. Auto-Pilot Mode & Live Audio Sync Status
     ImGui::BeginGroup();
-    if (isHold) {
-        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "MANUAL SCENE: [%s] (Hold: %.0fs)", curName.c_str(), timeLeft);
-        ImGui::SameLine();
-        if (ImGui::SmallButton("▶ Resume Auto")) {
-            m_autoPilot->cancelManualHold();
-        }
+    if (autoOn) {
+        ImGui::TextColored(ImVec4(0.2f, 0.85f, 1.0f, 1.0f), "🤖 Auto-Pilot Active (Dynamic Audio-Reactive Director)");
     } else {
-        ImGui::TextColored(ImVec4(0.2f, 0.85f, 1.0f, 1.0f), "ACTIVE SCENE: [%s] (Next phrase in %.0fs)", curName.c_str(), timeLeft);
+        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "🎛️ Manual Live Mode (Direct Slider & Toggle Control)");
     }
 
     // Audio status & BPM
     float bpm = m_beatDetector ? m_beatDetector->getBpm() : 128.0f;
     float pulse = m_beatDetector ? m_beatDetector->getBeatPulse() : 0.0f;
-    ImGui::TextDisabled("BPM: %.0f | Beat Pulse: %.2f", bpm, pulse);
+    ImGui::TextDisabled("Live Audio Sync: %.0f BPM | Beat Pulse: %.2f", bpm, pulse);
     ImGui::EndGroup();
 
     // 4. Audio silence warning if no sound detected
@@ -437,51 +462,251 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
     ImGui::PopStyleColor();
 }
 
-void DjDashboard::renderMoodButtons() {
-    if (ImGui::CollapsingHeader("1. 6 CURATED MOOD SCENES (Keys [1] - [6])", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const auto& scenes = m_autoPilot->getScenes();
-        int activeIdx = m_autoPilot->getCurrentSceneIndex();
+void DjDashboard::renderVisualMixerPanel() {
+    if (ImGui::CollapsingHeader("🎛️ 1. VISUAL INGREDIENTS MIXER", ImGuiTreeNodeFlags_DefaultOpen)) {
+        auto& user = m_autoPilot->getUserSettings();
 
-        for (size_t i = 0; i < scenes.size(); ++i) {
-            bool isActive = (activeIdx == static_cast<int>(i));
-            if (isActive) {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.45f, 0.0f, 1.0f));
+        ImGui::TextDisabled("Click any ingredient to inspect its details below. Click [ON]/[OFF] to toggle:");
+
+        auto RenderMixerRow = [&](
+            int ingredientIdx,
+            const char* depthBadge,
+            const char* label,
+            const char* id,
+            bool& enabled,
+            float& level,
+            bool isSubItem,
+            bool hasSolo
+        ) {
+            ImGui::PushID(id);
+
+            // 1. Master Illuminated [ ON ] / [ OFF ] Toggle Pill
+            if (enabled) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.12f, 0.78f, 0.40f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.18f, 0.90f, 0.48f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.22f, 0.24f, 0.29f, 0.85f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.32f, 0.35f, 0.42f, 0.95f));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.60f, 0.63f, 0.70f, 1.0f));
             }
 
-            std::string label = "[" + std::to_string(i + 1) + "] " + scenes[i].icon + " " + scenes[i].name;
-            if (ImGui::Button(label.c_str(), ImVec2(175.0f * m_uiScale, 45.0f * m_uiScale))) {
-                m_autoPilot->selectScene(static_cast<int>(i), 30.0f);
+            if (ImGui::Button(enabled ? "ON" : "OFF", ImVec2(44.0f * m_uiScale, 24.0f * m_uiScale))) {
+                enabled = !enabled;
             }
+            ImGui::PopStyleColor(3);
 
-            if (isActive) {
-                ImGui::PopStyleColor(2);
-            }
+            ImGui::SameLine();
 
-            if ((i + 1) % 3 != 0 && i < scenes.size() - 1) {
+            // 2. Depth Badge + Hierarchy Indentation
+            if (isSubItem) {
+                ImGui::TextDisabled(" └");
                 ImGui::SameLine();
             }
-        }
+
+            bool isSelected = (m_selectedIngredient == ingredientIdx);
+            ImVec4 badgeCol = isSelected ? ImVec4(1.0f, 0.75f, 0.0f, 1.0f) : (enabled ? ImVec4(0.2f, 0.85f, 1.0f, 1.0f) : ImVec4(0.45f, 0.48f, 0.55f, 0.7f));
+            ImGui::TextColored(badgeCol, "[%-8s]", depthBadge);
+            ImGui::SameLine();
+
+            // 3. Selectable Name Label (Clicking selects for details inspector)
+            char selectableLabel[128];
+            std::snprintf(selectableLabel, sizeof(selectableLabel), "%s%s", isSelected ? "▶ " : "", label);
+
+            ImVec4 labelCol = isSelected ? ImVec4(1.0f, 0.85f, 0.2f, 1.0f) : (enabled ? ImVec4(0.95f, 0.96f, 0.98f, 1.0f) : ImVec4(0.48f, 0.50f, 0.56f, 0.7f));
+            ImGui::PushStyleColor(ImGuiCol_Text, labelCol);
+
+            float labelWidth = ImGui::GetWindowWidth() - (hasSolo ? 250.0f : 200.0f) * m_uiScale - ImGui::GetCursorPosX();
+            if (labelWidth < 80.0f * m_uiScale) labelWidth = 80.0f * m_uiScale;
+
+            if (ImGui::Selectable(selectableLabel, isSelected, 0, ImVec2(labelWidth, 0.0f))) {
+                m_selectedIngredient = ingredientIdx;
+            }
+            ImGui::PopStyleColor();
+
+            // 4. Level Gain Slider (Right-aligned)
+            float sliderPos = ImGui::GetWindowWidth() - (hasSolo ? 175.0f : 125.0f) * m_uiScale;
+            if (sliderPos > ImGui::GetCursorPosX() + 10.0f) {
+                ImGui::SameLine(sliderPos);
+            } else {
+                ImGui::SameLine();
+            }
+
+            ImGui::SetNextItemWidth(85.0f * m_uiScale);
+            ImGui::SliderFloat("##Lvl", &level, 0.0f, 1.5f, "%.2fx");
+
+            // 5. Quick Solo Button
+            if (hasSolo) {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("S")) {
+                    user.heroTextEnabled = (&enabled == &user.heroTextEnabled);
+                    user.triangleEnabled = (&enabled == &user.triangleEnabled);
+                    user.sunEnabled = (&enabled == &user.sunEnabled);
+                    user.gridEnabled = (&enabled == &user.gridEnabled);
+                    user.lasersEnabled = (&enabled == &user.lasersEnabled);
+                    user.particlesEnabled = (&enabled == &user.particlesEnabled);
+                    enabled = true;
+                }
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Solo: isolate this layer exclusively");
+                }
+            }
+
+            ImGui::PopID();
+        };
+
+        // 1. Foremost Depth: Hero Text (Index 0)
+        RenderMixerRow(0, "FOREMOST", "🔤 Hero Text Centerpiece", "hero", user.heroTextEnabled, user.heroTextLevel, false, true);
+
+        // 2. Screen Overlay: Vignette & Drop Flash Pulse (Index 1)
+        RenderMixerRow(1, "OVERLAY",  "🔲 Vignette & Drop Pulse", "vig",  user.vignetteEnabled, user.vignetteLevel, false, false);
+
+        // 3. Stage Mid: Alive Triangle / Pyramid & Core (Index 2)
+        RenderMixerRow(2, "STAGE",    "🔺 Triangle (Alive Pyramid)", "tri",  user.triangleEnabled, user.triangleLevel, false, true);
+
+        // 4. Stage FX: Volumetric Lasers (Index 3)
+        RenderMixerRow(3, "STAGE FX", "🔦 Volumetric Apex Lasers", "las", user.lasersEnabled, user.lasersLevel, false, true);
+
+        // 5. Stage FX: Electric Sparks Particles (Index 4)
+        RenderMixerRow(4, "STAGE FX", "✨ Electric Stage Sparks", "prt", user.particlesEnabled, user.particlesLevel, false, true);
+
+        // 6. Ground: TRON Grid (Index 5)
+        RenderMixerRow(5, "GROUND",   "🌐 TRON Perspective Grid",  "grd", user.gridEnabled, user.gridLevel, false, true);
+
+        // Sub-elements under Grid:
+        RenderMixerRow(6, "OBJECTS",  "⛰️ Edge Crystals / Waves",  "cry", user.gridObjectsEnabled, user.gridObjectsLevel, true, false);
+        RenderMixerRow(7, "TRAILS",   "⚡ Speed Lines (Trails)",    "spd", user.speedLinesEnabled, user.speedLinesLevel, true, false);
+
+        // 7. Furthest Horizon: Sun / Celestial Centerpiece (Behind grid) (Index 8)
+        RenderMixerRow(8, "HORIZON",  "☀️ Sun / Celestial Horizon", "sun", user.sunEnabled, user.sunLevel, false, true);
     }
 }
 
-void DjDashboard::renderTextAndPalettePanel() {
-    if (ImGui::CollapsingHeader("2. CUSTOM LED LOGO & PALETTE", ImGuiTreeNodeFlags_DefaultOpen)) {
-        auto& user = m_autoPilot->getUserSettings();
+void DjDashboard::renderConsolidatedDetailsPanel() {
+    auto& user = m_autoPilot->getUserSettings();
 
-        // Custom Logo Text Input Box
-        ImGui::TextColored(ImVec4(0.0f, 0.85f, 1.0f, 1.0f), "Custom LED Dot-Matrix Text (16 chars):");
-        ImGui::SetNextItemWidth(260.0f * m_uiScale);
-        ImGui::InputText("##CustomText", user.customText, 17);
+    static const char* kIngredientTitles[] = {
+        "🔤 HERO TEXT CENTERPIECE",
+        "🔲 VIGNETTE & DROP PULSE",
+        "🔺 TRIANGLE (ALIVE PYRAMID)",
+        "🔦 VOLUMETRIC APEX LASERS",
+        "✨ ELECTRIC STAGE SPARKS",
+        "🌐 TRON PERSPECTIVE GRID",
+        "⛰️ EDGE CRYSTALS / MOUNTAIN WAVES",
+        "⚡ SPEED LINES (LIGHT-CYCLE TRAILS)",
+        "☀️ SUN / CELESTIAL HORIZON",
+        "🎨 CONCERT PALETTES & SAFETY"
+    };
 
-        ImGui::SameLine();
-        if (ImGui::Button("Reset to 'DAD PUNK'")) {
-            std::snprintf(user.customText, sizeof(user.customText), "%s", "DAD PUNK");
+    const char* activeTitle = (m_selectedIngredient >= 0 && m_selectedIngredient < 10)
+        ? kIngredientTitles[m_selectedIngredient] : "DETAILS";
+
+    std::string headerStr = std::string("⚙️ 2. DETAILS: ") + activeTitle;
+    if (ImGui::CollapsingHeader(headerStr.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+
+        // Ingredient 0: Hero Text
+        if (m_selectedIngredient == 0) {
+            ImGui::Checkbox("Authentic 3D Mesh (References 1-3)", &user.useAuthenticLogo);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Authentic 1994-2007 extruded 3D polygonal mesh rendered in foremost depth pass");
+            }
+
+            if (user.useAuthenticLogo) {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "[Foremost 3D Mesh Active]");
+            } else {
+                ImGui::TextColored(ImVec4(0.0f, 0.85f, 1.0f, 1.0f), "Custom DJ Vector Font Text (16 chars):");
+                ImGui::SetNextItemWidth(240.0f * m_uiScale);
+                ImGui::InputText("##CustomText", user.customText, 17);
+
+                ImGui::SameLine();
+                if (ImGui::Button("Reset 'DAD PUNK'")) {
+                    std::snprintf(user.customText, sizeof(user.customText), "%s", "DAD PUNK");
+                }
+
+                const char* fontFaceNames[] = {
+                    "0: Neon Sans (Double Glow Laser)",
+                    "1: Ryga (Triple-Line Cyber Electro)",
+                    "2: Raster Forge (90s Retro Arcade)",
+                    "3: Atari Classic (8-Bit Chunky ATASCII)"
+                };
+                ImGui::SetNextItemWidth(300.0f * m_uiScale);
+                ImGui::Combo("##HeroFontFace", &user.fontFace, fontFaceNames, 4);
+            }
+
+            ImGui::SliderFloat("Text Size##HeroScale", &user.logoScale, 0.5f, 3.5f, "%.2fx (Scale)");
+            ImGui::SliderFloat("Vertical Y##HeroY", &user.logoPosY, -0.6f, 0.8f, "%.2f (Stage Position)");
+
+            const char* logoStyleNames[] = {
+                "0: Discovery 3D Liquid Chrome (Reference Image 1)",
+                "1: Faceted 3D Crystal Mesh (Reference Image 2)",
+                "2: Neon Laser Outline / Cyber Vector",
+                "3: Digital Cyber Slices & Scanlines",
+                "4: Solid Daft Red / Gold Punk Finish"
+            };
+            ImGui::SetNextItemWidth(300.0f * m_uiScale);
+            ImGui::Combo("##HeroTextStyle", &user.logoStyle, logoStyleNames, 5);
         }
+        // Ingredient 1: Vignette
+        else if (m_selectedIngredient == 1) {
+            ImGui::TextColored(ImVec4(0.2f, 0.85f, 1.0f, 1.0f), "Screen-Border Vignette & Pulse:");
+            ImGui::TextDisabled("Darkens perimeter and flashes dynamic glow during musical drops and kicks.");
+            ImGui::SliderFloat("Vignette Intensity", &user.vignetteLevel, 0.0f, 1.5f, "%.2fx");
+        }
+        // Ingredient 2: Triangle (Alive Pyramid)
+        else if (m_selectedIngredient == 2) {
+            ImGui::TextColored(ImVec4(0.0f, 0.85f, 1.0f, 1.0f), "Pyramid Face LED Pattern:");
+            const char* patternNames[] = { "0: VU Strips", "1: Chevrons", "2: Scanner Sweep", "3: Solid Glow", "4: Rainbow" };
+            ImGui::SetNextItemWidth(260.0f * m_uiScale);
+            ImGui::Combo("##PyramidPattern", &user.pyramidPattern, patternNames, 5);
 
-        // 5 Palette Swatches
-        ImGui::Spacing();
-        ImGui::TextColored(ImVec4(0.0f, 0.85f, 1.0f, 1.0f), "Concert Color Palette Swatches:");
+            ImGui::Spacing();
+            ImGui::Checkbox("Internal Sub-Bass Octahedron Core", &user.octahedronCoreEnabled);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Pulsing geometric sub-bass diamond glowing inside pyramid frame");
+            }
+        }
+        // Ingredient 3: Lasers
+        else if (m_selectedIngredient == 3) {
+            ImGui::TextColored(ImVec4(0.2f, 0.85f, 1.0f, 1.0f), "8-Beam Volumetric Apex Lasers:");
+            ImGui::TextDisabled("Volumetric fan sweeping forward over the crowd, occluded by the pyramid.");
+            ImGui::SliderFloat("Laser Output Intensity", &user.lasersLevel, 0.0f, 1.5f, "%.2fx");
+        }
+        // Ingredient 4: Particles
+        else if (m_selectedIngredient == 4) {
+            ImGui::TextColored(ImVec4(0.2f, 0.85f, 1.0f, 1.0f), "Electric Stage Embers:");
+            ImGui::TextDisabled("Beat-reactive 3D sparks rising up from the ground plane towards the camera.");
+            ImGui::SliderFloat("Particle Density & Glow", &user.particlesLevel, 0.0f, 1.5f, "%.2fx");
+        }
+        // Ingredient 5 & 6: Grid & Mountain Waves
+        else if (m_selectedIngredient == 5 || m_selectedIngredient == 6) {
+            ImGui::TextColored(ImVec4(0.0f, 0.85f, 1.0f, 1.0f), "Mountain Waves & Edge Crystals:");
+            ImGui::SliderFloat("Mountain Wave Height", &user.mountainWaveHeight, 0.0f, 1.5f, user.mountainWaveHeight < 0.02f ? "Flat TRON Grid" : "%.2f (Wave Mountains)");
+            ImGui::TextDisabled("Motion direction: Forward back-to-front down the road in lockstep.");
+        }
+        // Ingredient 7: Speed Lines
+        else if (m_selectedIngredient == 7) {
+            ImGui::TextColored(ImVec4(0.0f, 0.85f, 1.0f, 1.0f), "TRON Speed Lines (Light-Cycle Trails):");
+            ImGui::TextDisabled("High-speed light ribbons shooting down 4 floor lanes toward the horizon.");
+            ImGui::SliderFloat("Trail Intensity", &user.speedLinesLevel, 0.0f, 1.5f, "%.2fx");
+        }
+        // Ingredient 8: Sun / Celestial Horizon
+        else if (m_selectedIngredient == 8) {
+            ImGui::TextColored(ImVec4(0.0f, 0.85f, 1.0f, 1.0f), "Celestial Horizon Centerpiece:");
+            const char* celestialNames[] = {
+                "0: Black Hole Singularity Eclipse",
+                "1: Glowing Neon Portal Ring",
+                "2: Digital Wireframe Cyber Moon"
+            };
+            ImGui::SetNextItemWidth(280.0f * m_uiScale);
+            ImGui::Combo("##CelestialCenterpiece", &user.celestialMode, celestialNames, 3);
+            ImGui::TextDisabled("Sun sits on the horizon line and is naturally culled by the TRON floor.");
+        }
+    }
+
+    // Always-accessible Concert Palettes & Photosafety
+    ImGui::Spacing();
+    if (ImGui::CollapsingHeader("🎨 3. CONCERT COLOR PALETTES & SAFETY", ImGuiTreeNodeFlags_DefaultOpen)) {
         const char* paletteNames[] = {
             "🔴 Daft Red/Gold",
             "🔵 TRON Cyan/Orange",
@@ -509,31 +734,10 @@ void DjDashboard::renderTextAndPalettePanel() {
                 ImGui::SameLine();
             }
         }
-    }
-}
 
-void DjDashboard::renderKidSafeAndLayerControls() {
-    if (ImGui::CollapsingHeader("3. KID-SAFE & LAYER MULTIPLIERS", ImGuiTreeNodeFlags_DefaultOpen)) {
-        auto& user = m_autoPilot->getUserSettings();
-
-        // Kid-Safe Master Brightness (Default 85%)
+        ImGui::Spacing();
         ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "🛡️ Elementary-School Safe (Zero Strobe):");
         ImGui::SliderFloat("Master Brightness", &user.masterBrightness, 0.1f, 1.0f, "%.2f (Kid-Safe Cap)");
-        ImGui::Checkbox("🎃 Halloween Spooky FX Override", &user.halloweenMode);
-
-        ImGui::Spacing();
-        ImGui::TextColored(ImVec4(0.0f, 0.85f, 1.0f, 1.0f), "Pyramid Face LED Pattern:");
-        const char* patternNames[] = { "0: VU Strips", "1: Chevrons", "2: Scanner Sweep", "3: Solid Glow", "4: Rainbow" };
-        ImGui::Combo("##PyramidPattern", &user.pyramidPattern, patternNames, 5);
-
-        ImGui::Spacing();
-        ImGui::TextDisabled("Non-Destructive Layer Multipliers (Won't snap back):");
-        ImGui::SliderFloat("Pyramid Weight", &user.pyramidMultiplier, 0.0f, 2.0f, "%.2fx");
-        ImGui::SliderFloat("Logo Weight", &user.logoMultiplier, 0.0f, 2.0f, "%.2fx");
-        ImGui::SliderFloat("Laser Intensity", &user.laserMultiplier, 0.0f, 2.0f, "%.2fx");
-        ImGui::SliderFloat("TRON Grid Floor", &user.floorMultiplier, 0.0f, 2.0f, "%.2fx");
-        ImGui::SliderFloat("Sky Dome / Stars", &user.skyMultiplier, 0.0f, 2.0f, "%.2fx");
-        ImGui::SliderFloat("Particles (Bats/Sparks)", &user.particleMultiplier, 0.0f, 2.0f, "%.2fx");
     }
 }
 
@@ -623,7 +827,6 @@ void DjDashboard::renderProjectorOutputPanel() {
                             user.pyramidPattern = loaded.pyramidPattern;
                             user.logoStyle = loaded.logoStyle;
                             user.paletteIndex = loaded.paletteIndex;
-                            user.halloweenMode = loaded.halloweenMode;
                             user.masterBrightness = loaded.masterBrightness;
                             std::snprintf(user.customText, sizeof(user.customText), "%s", loaded.customText.c_str());
                             m_autoPilot->selectScene(loaded.sceneIndex, 30.0f);
@@ -652,7 +855,6 @@ void DjDashboard::renderProjectorOutputPanel() {
             saveP.pyramidPattern = user.pyramidPattern;
             saveP.logoStyle = user.logoStyle;
             saveP.paletteIndex = user.paletteIndex;
-            saveP.halloweenMode = user.halloweenMode;
             saveP.masterBrightness = user.masterBrightness;
             saveP.customText = user.customText;
             m_presetManager->savePreset(saveP);

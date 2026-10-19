@@ -65,7 +65,12 @@
         #define GL_R32F                           0x822E
         #define GL_RED                            0x1903
         #define GL_RGBA8                          0x8058
+        #define GL_STATIC_DRAW                    0x88E4
+        #define GL_ELEMENT_ARRAY_BUFFER           0x8893
         #define GL_INVALID_INDEX                  0xFFFFFFFFu
+        #define GL_DEPTH_ATTACHMENT               0x8D00
+        #define GL_DEPTH_COMPONENT24              0x81A6
+        #define GL_DEPTH_COMPONENT                0x1902
     #endif
 
     typedef void (APIENTRYP PFNGLACTIVETEXTUREPROC)(GLenum texture);
@@ -84,6 +89,7 @@
     typedef void (APIENTRYP PFNGLDELETEPROGRAMPROC)(GLuint program);
     typedef GLint (APIENTRYP PFNGLGETUNIFORMLOCATIONPROC)(GLuint program, const GLchar *name);
     typedef void (APIENTRYP PFNGLUNIFORM1IPROC)(GLint location, GLint v0);
+    typedef void (APIENTRYP PFNGLUNIFORM3FPROC)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
     typedef GLuint (APIENTRYP PFNGLGETUNIFORMBLOCKINDEXPROC)(GLuint program, const GLchar *uniformBlockName);
     typedef void (APIENTRYP PFNGLUNIFORMBLOCKBINDINGPROC)(GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding);
     typedef void (APIENTRYP PFNGLGENBUFFERSPROC)(GLsizei n, GLuint *buffers);
@@ -104,6 +110,10 @@
     typedef void (APIENTRYP PFNGLDELETESAMPLERSPROC)(GLsizei count, const GLuint *samplers);
     typedef void (APIENTRYP PFNGLBINDSAMPLERPROC)(GLuint unit, GLuint sampler);
     typedef void (APIENTRYP PFNGLSAMPLERPARAMETERIPROC)(GLuint sampler, GLenum pname, GLint param);
+    typedef void (APIENTRYP PFNGLENABLEVERTEXATTRIBARRAYPROC)(GLuint index);
+    typedef void (APIENTRYP PFNGLDISABLEVERTEXATTRIBARRAYPROC)(GLuint index);
+    typedef void (APIENTRYP PFNGLVERTEXATTRIBPOINTERPROC)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
+    typedef void (APIENTRYP PFNGLUNIFORMMATRIX4FVPROC)(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
 
     extern PFNGLACTIVETEXTUREPROC        glActiveTexture;
     extern PFNGLCREATESHADERPROC         glCreateShader;
@@ -121,6 +131,7 @@
     extern PFNGLDELETEPROGRAMPROC        glDeleteProgram;
     extern PFNGLGETUNIFORMLOCATIONPROC   glGetUniformLocation;
     extern PFNGLUNIFORM1IPROC            glUniform1i;
+    extern PFNGLUNIFORM3FPROC            glUniform3f;
     extern PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex;
     extern PFNGLUNIFORMBLOCKBINDINGPROC  glUniformBlockBinding;
     extern PFNGLGENBUFFERSPROC           glGenBuffers;
@@ -141,6 +152,10 @@
     extern PFNGLDELETESAMPLERSPROC       glDeleteSamplers;
     extern PFNGLBINDSAMPLERPROC          glBindSampler;
     extern PFNGLSAMPLERPARAMETERIPROC    glSamplerParameteri;
+    extern PFNGLENABLEVERTEXATTRIBARRAYPROC  glEnableVertexAttribArray;
+    extern PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray;
+    extern PFNGLVERTEXATTRIBPOINTERPROC      glVertexAttribPointer;
+    extern PFNGLUNIFORMMATRIX4FVPROC         glUniformMatrix4fv;
 
     namespace Visualizer::Graphics {
         bool InitGL33Loader();

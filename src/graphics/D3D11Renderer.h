@@ -6,6 +6,7 @@
 #include "ConstantBuffers.h"
 #include "ShaderCompiler.h"
 #include "TextureManager.h"
+#include "Mesh3D.h"
 #include "SpoutSender.h"
 #include "WindowManager.h"
 
@@ -57,6 +58,7 @@ private:
     // Offscreen render targets (Scene -> Post-Process -> Output)
     GLuint m_sceneFBO = 0;
     GLuint m_sceneTexture = 0;
+    GLuint m_sceneDepthTexture = 0;
 
     GLuint m_postFBO = 0;
     GLuint m_postTexture = 0;
@@ -66,6 +68,10 @@ private:
 
     // Uniform Buffer Object for AudioVisualizerParams (binding 0)
     GLuint m_constantBuffer = 0;
+
+    // 3D Polygonal Hero Mesh & Shader Program
+    Mesh3D m_heroMesh;
+    GLuint m_meshProgram = 0;
 
     // Subsystems
     std::unique_ptr<ShaderCompiler> m_shaderCompiler;
