@@ -1,8 +1,21 @@
 #include "WindowManager.h"
 #include "GL33Loader.h"
 #include "../core/Logger.h"
+#include "../../third_party/json/json.hpp"
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <fstream>
+#include <filesystem>
+#include <algorithm>
+
+#if defined(_WIN32)
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #include <windows.h>
+#elif defined(__APPLE__)
+    #include <mach-o/dyld.h>
+#endif
 
 #if !defined(__APPLE__)
 PFNGLACTIVETEXTUREPROC        glActiveTexture = nullptr;
@@ -112,11 +125,29 @@ static std::wstring Utf8ToWide(const char* str) {
     return out;
 }
 
+static std::filesystem::path GetAppDirectory() {
+#if defined(_WIN32)
+    wchar_t buf[MAX_PATH];
+    GetModuleFileNameW(nullptr, buf, MAX_PATH);
+    return std::filesystem::path(buf).parent_path();
+#elif defined(__APPLE__)
+    char buf[4096];
+    uint32_t size = sizeof(buf);
+    if (_NSGetExecutablePath(buf, &size) == 0) {
+        return std::filesystem::weakly_canonical(std::filesystem::path(buf)).parent_path();
+    }
+    return std::filesystem::current_path();
+#else
+    return std::filesystem::current_path();
+#endif
+}
+
 WindowManager::WindowManager() {
     s_instance = this;
 }
 
 WindowManager::~WindowManager() {
+    saveWindowConfig();
     closeStageWindow();
     if (m_controlWindow) {
         glfwDestroyWindow(m_controlWindow);
@@ -124,6 +155,50 @@ WindowManager::~WindowManager() {
     }
     glfwTerminate();
     s_instance = nullptr;
+}
+
+void WindowManager::loadWindowConfig() {
+    try {
+        std::filesystem::path configPath = GetAppDirectory() / "window_config.json";
+        std::error_code ec;
+        if (!std::filesystem::exists(configPath, ec)) return;
+
+        std::ifstream file(configPath);
+        if (!file.is_open()) return;
+
+        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        auto root = Visualizer::Json::Value::parse(content);
+        if (!root.is_object()) return;
+
+        m_controlWidth = std::max(root["controlWidth"].as_int(1600), 960);
+        m_controlHeight = std::max(root["controlHeight"].as_int(900), 540);
+        m_controlPosX = root["controlPosX"].as_int(100);
+        m_controlPosY = root["controlPosY"].as_int(100);
+        m_isMaximized = root["isMaximized"].as_bool(false);
+        m_uiScale = std::clamp(root["uiScale"].as_float(1.0f), 0.75f, 3.0f);
+    } catch (...) {
+        // Fallback to default window configuration on parse error
+    }
+}
+
+void WindowManager::saveWindowConfig() {
+    try {
+        std::filesystem::path configPath = GetAppDirectory() / "window_config.json";
+        Visualizer::Json::Value root(Visualizer::Json::Value::Object{});
+        root["controlWidth"] = m_controlWidth;
+        root["controlHeight"] = m_controlHeight;
+        root["controlPosX"] = m_controlPosX;
+        root["controlPosY"] = m_controlPosY;
+        root["isMaximized"] = m_isMaximized;
+        root["uiScale"] = m_uiScale;
+
+        std::ofstream file(configPath);
+        if (file.is_open()) {
+            file << root.dump(2);
+        }
+    } catch (...) {
+        // Suppress file write errors on shutdown
+    }
 }
 
 std::vector<MonitorInfo> WindowManager::enumerateMonitors() {
@@ -169,24 +244,29 @@ bool WindowManager::createControlWindow(void* /*hInstance*/, int width, int heig
         return false;
     }
 
+    loadWindowConfig();
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 #if defined(__APPLE__)
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
 #endif
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-    m_controlWidth = width;
-    m_controlHeight = height;
+    int targetW = std::max(m_controlWidth, 960);
+    int targetH = std::max(m_controlHeight, 540);
 
     std::string utf8Title = WideToUtf8(title);
-    m_controlWindow = glfwCreateWindow(width, height, utf8Title.c_str(), nullptr, nullptr);
+    m_controlWindow = glfwCreateWindow(targetW, targetH, utf8Title.c_str(), nullptr, nullptr);
     if (!m_controlWindow) {
         Log("[ERROR] glfwCreateWindow failed for Control Window");
         return false;
     }
+
+    glfwSetWindowPos(m_controlWindow, m_controlPosX, m_controlPosY);
 
     glfwMakeContextCurrent(m_controlWindow);
     if (!InitGL33Loader()) {
@@ -202,17 +282,26 @@ bool WindowManager::createControlWindow(void* /*hInstance*/, int width, int heig
     }
 
     glfwSetFramebufferSizeCallback(m_controlWindow, FramebufferSizeCallback);
+    glfwSetWindowSizeCallback(m_controlWindow, WindowSizeCallback);
+    glfwSetWindowPosCallback(m_controlWindow, WindowPosCallback);
+    glfwSetWindowMaximizeCallback(m_controlWindow, WindowMaximizeCallback);
+    glfwSetWindowCloseCallback(m_controlWindow, WindowCloseCallback);
     glfwSetKeyCallback(m_controlWindow, WindowKeyCallback);
+
+    std::error_code ec;
+    if (!std::filesystem::exists(GetAppDirectory() / "window_config.json", ec)) {
+        saveWindowConfig();
+    }
 
     return true;
 }
 
 void WindowManager::showControlWindow(bool maximized) {
     if (!m_controlWindow) return;
-    glfwShowWindow(m_controlWindow);
     if (maximized) {
         glfwMaximizeWindow(m_controlWindow);
     }
+    glfwShowWindow(m_controlWindow);
     int fbW = 0, fbH = 0;
     glfwGetFramebufferSize(m_controlWindow, &fbW, &fbH);
     if (fbW > 0 && fbH > 0) {
@@ -345,6 +434,36 @@ void WindowManager::WindowKeyCallback(GLFWwindow* window, int key, int /*scancod
 
     if (s_instance->m_keyCallback) {
         s_instance->m_keyCallback(key, action);
+    }
+}
+
+void WindowManager::WindowSizeCallback(GLFWwindow* window, int width, int height) {
+    if (!s_instance || width <= 0 || height <= 0) return;
+    if (window == s_instance->m_controlWindow && !s_instance->m_isMaximized && !s_instance->m_isSingleScreenFullscreen) {
+        s_instance->m_controlWidth = width;
+        s_instance->m_controlHeight = height;
+    }
+}
+
+void WindowManager::WindowPosCallback(GLFWwindow* window, int x, int y) {
+    if (!s_instance) return;
+    if (window == s_instance->m_controlWindow && !s_instance->m_isMaximized && !s_instance->m_isSingleScreenFullscreen) {
+        s_instance->m_controlPosX = x;
+        s_instance->m_controlPosY = y;
+    }
+}
+
+void WindowManager::WindowMaximizeCallback(GLFWwindow* window, int maximized) {
+    if (!s_instance) return;
+    if (window == s_instance->m_controlWindow) {
+        s_instance->m_isMaximized = (maximized == GLFW_TRUE);
+    }
+}
+
+void WindowManager::WindowCloseCallback(GLFWwindow* window) {
+    if (!s_instance) return;
+    if (window == s_instance->m_controlWindow) {
+        s_instance->saveWindowConfig();
     }
 }
 

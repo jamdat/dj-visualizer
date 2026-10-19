@@ -61,8 +61,19 @@ public:
     void setResizeCallback(ResizeCallback cb) { m_resizeCallback = std::move(cb); }
     void setKeyCallback(KeyCallback cb) { m_keyCallback = std::move(cb); }
 
+    void saveWindowConfig();
+    void loadWindowConfig();
+
+    float getUiScale() const { return m_uiScale; }
+    void setUiScale(float scale) { m_uiScale = scale; saveWindowConfig(); }
+    bool wasMaximizedSaved() const { return m_isMaximized; }
+
 private:
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
+    static void WindowSizeCallback(GLFWwindow* window, int width, int height);
+    static void WindowPosCallback(GLFWwindow* window, int x, int y);
+    static void WindowMaximizeCallback(GLFWwindow* window, int maximized);
+    static void WindowCloseCallback(GLFWwindow* window);
     static void WindowKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     GLFWwindow* m_controlWindow = nullptr;
@@ -70,6 +81,11 @@ private:
 
     int m_controlWidth = 1600;
     int m_controlHeight = 900;
+    int m_controlPosX = 100;
+    int m_controlPosY = 100;
+    bool m_isMaximized = false;
+    float m_uiScale = 1.0f;
+
     int m_stageWidth = 1920;
     int m_stageHeight = 1080;
 

@@ -6,7 +6,7 @@
 #include <mutex>
 
 #ifndef DJVISUALIZER_VERSION
-#define DJVISUALIZER_VERSION "v1.0.0"
+#define DJVISUALIZER_VERSION "v2.0.0-dadpunk"
 #endif
 
 #ifndef DJVISUALIZER_GITHUB_REPO
@@ -40,10 +40,12 @@ public:
     std::string getCurrentVersion() const { return m_currentVersion; }
     std::string getLatestVersion() const;
     std::string getStatusMessage() const;
+    bool isDevBuild() const { return m_isDevBuild; }
 
 private:
     std::string m_currentVersion = DJVISUALIZER_VERSION;
     std::string m_repoSlug = DJVISUALIZER_GITHUB_REPO;
+    bool m_isDevBuild = false;
 
     std::atomic<UpdateState> m_state{UpdateState::Idle};
     mutable std::mutex m_mutex;

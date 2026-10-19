@@ -80,6 +80,10 @@ bool DjDashboard::initialize(GLFWwindow* window, void* /*device*/, void* /*conte
             io.Fonts->AddFontDefault();
         }
 
+        if (m_windowManager) {
+            m_uiScale = m_windowManager->getUiScale();
+        }
+
         m_appliedUiScale = m_uiScale;
         io.FontGlobalScale = m_uiScale;
         applyCustomTheme(m_uiScale);
@@ -257,7 +261,11 @@ void DjDashboard::renderHeaderBar() {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
         std::string btnLabel = "⬇ Install Update (" + m_autoUpdater.getLatestVersion() + ") & Restart";
         if (ImGui::SmallButton(btnLabel.c_str())) {
-            m_autoUpdater.downloadAndInstallUpdateAsync();
+            if (m_autoUpdater.isDevBuild()) {
+                m_showUpdateConfirmModal = true;
+            } else {
+                m_autoUpdater.downloadAndInstallUpdateAsync();
+            }
         }
         ImGui::PopStyleColor(2);
     } else if (upState == Control::UpdateState::DownloadingAndInstalling) {
@@ -270,13 +278,77 @@ void DjDashboard::renderHeaderBar() {
         }
     }
 
-    float rightAreaWidth = 380.0f * m_uiScale;
+    if (m_showUpdateConfirmModal) {
+        ImGui::OpenPopup("Overwrite Warning##DevUpdate");
+    }
+
+    if (ImGui::BeginPopupModal("Overwrite Warning##DevUpdate", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.0f, 1.0f), "CAUTION: Local Development Build Detected!");
+        ImGui::Spacing();
+        ImGui::Text("Installing this GitHub release will download and overwrite files in:");
+        ImGui::TextDisabled("build/bin/ (DJVisualizer.exe, shaders, and presets)");
+        ImGui::Text("with the pre-built release package (%s).", m_autoUpdater.getLatestVersion().c_str());
+        ImGui::Spacing();
+        ImGui::Text("Any uncommitted or local shader edits may be overwritten.");
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        if (ImGui::Button("⚠️ Yes, Overwrite & Install", ImVec2(200.0f * m_uiScale, 0))) {
+            m_showUpdateConfirmModal = false;
+            ImGui::CloseCurrentPopup();
+            m_autoUpdater.downloadAndInstallUpdateAsync();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(100.0f * m_uiScale, 0))) {
+            m_showUpdateConfirmModal = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    float rightAreaWidth = 520.0f * m_uiScale;
     float winWidth = ImGui::GetWindowWidth();
     if (winWidth > rightAreaWidth + 300.0f) {
         ImGui::SameLine(winWidth - rightAreaWidth);
     } else {
         ImGui::SameLine();
     }
+
+    // Quick Zoom Controls: UI: [-] 100% [+]
+    static const float kScaleSteps[] = { 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f };
+    ImGui::Text("UI:");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("[-]")) {
+        float nextScale = m_uiScale;
+        for (int i = 5; i >= 0; --i) {
+            if (kScaleSteps[i] < m_uiScale - 0.05f) {
+                nextScale = kScaleSteps[i];
+                break;
+            }
+        }
+        if (nextScale != m_uiScale) {
+            m_uiScale = nextScale;
+            if (m_windowManager) m_windowManager->setUiScale(m_uiScale);
+        }
+    }
+    ImGui::SameLine();
+    ImGui::Text("%.0f%%", m_uiScale * 100.0f);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("[+]")) {
+        float nextScale = m_uiScale;
+        for (int i = 0; i < 6; ++i) {
+            if (kScaleSteps[i] > m_uiScale + 0.05f) {
+                nextScale = kScaleSteps[i];
+                break;
+            }
+        }
+        if (nextScale != m_uiScale) {
+            m_uiScale = nextScale;
+            if (m_windowManager) m_windowManager->setUiScale(m_uiScale);
+        }
+    }
+    ImGui::SameLine();
 
 #if defined(__APPLE__)
     ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "[Apple Silicon arm64]");
