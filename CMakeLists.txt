@@ -142,13 +142,16 @@ if(WIN32)
         ole32
     )
 elseif(APPLE)
+    target_compile_definitions(DJVisualizer PRIVATE GLFW_INCLUDE_NONE)
     target_link_libraries(DJVisualizer PRIVATE
         glfw
         OpenGL::GL
+        "-framework Foundation"
         "-framework Cocoa"
         "-framework IOKit"
         "-framework CoreVideo"
         "-framework CoreAudio"
+        "-framework CoreMIDI"
         "-framework AudioToolbox"
         "-framework AVFoundation"
         "-framework CoreMedia"
