@@ -165,7 +165,11 @@ static stbi_uc *stbi__load_bmp(FILE *f, int *x, int *y, int *comp, int req_comp)
 
 stbi_uc *stbi_load(char const *filename, int *x, int *y, int *channels_in_file, int desired_channels) {
     FILE *f = NULL;
+#if defined(_MSC_VER)
     fopen_s(&f, filename, "rb");
+#else
+    f = fopen(filename, "rb");
+#endif
     if (!f) {
         stbi__g_failure_reason = "Cannot open file";
         return NULL;
@@ -173,7 +177,11 @@ stbi_uc *stbi_load(char const *filename, int *x, int *y, int *channels_in_file, 
     
     size_t len = strlen(filename);
     stbi_uc *res = NULL;
+#if defined(_MSC_VER)
     if (len > 4 && _stricmp(filename + len - 4, ".bmp") == 0) {
+#else
+    if (len > 4 && (strcmp(filename + len - 4, ".bmp") == 0 || strcmp(filename + len - 4, ".BMP") == 0)) {
+#endif
         res = stbi__load_bmp(f, x, y, channels_in_file, desired_channels);
     } else {
         res = stbi__load_tga(f, x, y, channels_in_file, desired_channels);
