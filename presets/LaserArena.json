@@ -1,0 +1,37 @@
+{
+  "audioGain": 1.8,
+  "autoPilot": false,
+  "bloomIntensity": 1.8,
+  "colorAccent": [
+    1,
+    1,
+    1,
+    1
+  ],
+  "colorPrimary": [
+    0.2,
+    1,
+    0,
+    1
+  ],
+  "colorSecondary": [
+    1,
+    0,
+    0.3,
+    1
+  ],
+  "customParam0": 1,
+  "customParam1": 1,
+  "customParam2": 0.5,
+  "customParam3": 1,
+  "customParam4": 0,
+  "customParam5": 1,
+  "customParam6": 0,
+  "customParam7": 0,
+  "glitchRate": 0.2,
+  "name": "LaserArena",
+  "sceneIndex": 3,
+  "sceneName": "ConcertLasers",
+  "strobeFlash": 0,
+  "wireframeDensity": 1
+}
