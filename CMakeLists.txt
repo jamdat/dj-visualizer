@@ -14,7 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Version & GitHub Repository metadata for Auto-Updater
 if(NOT DEFINED DJVISUALIZER_VERSION)
-    set(DJVISUALIZER_VERSION "v1.0.0")
+    set(DJVISUALIZER_VERSION "v2.0.0-dadpunk")
 endif()
 if(NOT DEFINED DJVISUALIZER_GITHUB_REPO)
     set(DJVISUALIZER_GITHUB_REPO "jamdat/dj-visualizer")
