@@ -43,5 +43,7 @@
    - `t0` (`AudioSpectrumTex`): `512x2` `R32F` texture (Row 0 = FFT spectrum, Row 1 = oscilloscope waveform).
    - `t1` (`SceneColorTex`, in post-process pass): Rendered scene FBO texture.
    - `t2` (`NoiseTex`), `t3` (`LogoTex`), `t4` (`LutTex`), `t5` (`DirtTex`): Procedural lookup textures bound by `TextureManager::bindAll`.
-4. **Releasing Updates**:
-   - Bump `CURRENT_VERSION` in `src/control/AutoUpdater.h`, commit, and push a git tag (`git tag v1.x.x && git push origin v1.x.x`) or run the workflow manually in GitHub Actions to publish updated Windows & macOS bundles that clients can install in 1 click from the top bar.
+4. **Automatic Release & Git Submission Rule (Zero-Friction Workflow)**:
+   - **Proactive Prompt at Stopping Points**: Whenever a feature, bugfix, or milestone reaches a good stopping point and passes local build verification, the agent MUST automatically ask the user: *"Ready to commit, push, and build a new Windows + Mac release?"* (do not wait for the user to ask how to submit to git).
+   - **Small Patch Version Increments Only**: Only increment the patch number by `+0.0.1` (e.g., `v1.0.1` -> `v1.0.2` -> `v1.0.3`) in both `CMakeLists.txt` (`DJVISUALIZER_VERSION`) and `src/control/AutoUpdater.h` (`DJVISUALIZER_VERSION`). **Never** do drastic major (`2.0.0`) or minor (`1.1.0`) version jumps unless the user explicitly asks for it.
+   - **Automated Push & CI Verification**: Once confirmed by the user, the agent automatically stages changes, commits, creates the matching git tag (`git tag v1.0.x`), pushes (`git push origin master --tags`), and verifies the GitHub Actions Windows + macOS release build.
