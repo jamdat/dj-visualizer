@@ -131,8 +131,8 @@ static int RunVisualizerApp() {
             }
         });
 
-        // Show main console window maximized now that everything is initialized
-        windowManager.showControlWindow(true);
+        // Show main console window (restoring maximized state if it was previously saved)
+        windowManager.showControlWindow(windowManager.wasMaximizedSaved());
 
         // 8. High-Precision Cross-Platform Timing
         auto lastTime = std::chrono::steady_clock::now();

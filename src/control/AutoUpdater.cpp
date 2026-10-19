@@ -58,7 +58,15 @@ static std::string RunCommandCaptureStdout(const std::string& cmd) {
     return output;
 }
 
-AutoUpdater::AutoUpdater() = default;
+AutoUpdater::AutoUpdater() {
+    std::filesystem::path appDir = GetAppDirectory();
+    std::error_code ec;
+    if (std::filesystem::exists(appDir / "../../CMakeLists.txt", ec) ||
+        std::filesystem::exists(appDir / "../../src", ec) ||
+        std::filesystem::exists(appDir / "../CMakeLists.txt", ec)) {
+        m_isDevBuild = true;
+    }
+}
 
 AutoUpdater::~AutoUpdater() {
     if (m_workerThread.joinable()) {

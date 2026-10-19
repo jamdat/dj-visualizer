@@ -83,6 +83,7 @@ private:
     float m_appliedUiScale = 1.0f;
     int m_selectedScaleIndex = 0;
     float m_silentWarningTimer = 0.0f;
+    bool m_showUpdateConfirmModal = false;
 };
 
 } // namespace Visualizer::UI
