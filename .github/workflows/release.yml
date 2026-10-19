@@ -1,0 +1,50 @@
+name: Build and Release DJ Visualizer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC Toolchain
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=20
+
+      - name: Build Release Binary
+        run: |
+          cmake --build build --config Release
+
+      - name: Package Standalone Client Deliverable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/DJVisualizer
+          Copy-Item -Path build/bin/Release/DJVisualizer.exe -Destination dist/DJVisualizer/
+          Copy-Item -Path src/shaders -Destination dist/DJVisualizer/src/ -Recurse
+          Copy-Item -Path assets -Destination dist/DJVisualizer/ -Recurse
+          Copy-Item -Path presets -Destination dist/DJVisualizer/ -Recurse
+          Copy-Item -Path ue5_bridge -Destination dist/DJVisualizer/ -Recurse
+          Copy-Item -Path README.md -Destination dist/DJVisualizer/
+          
+          Compress-Archive -Path dist/DJVisualizer -DestinationPath DJVisualizer-Windows-x64.zip
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: DJVisualizer-Windows-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

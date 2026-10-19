@@ -1,0 +1,57 @@
+// =============================================================================
+// AliveShaders.ush - Unreal Engine 5 Shader Header for Daft Alive Visuals
+// Drop into your Unreal Engine project's Shaders/ directory
+// =============================================================================
+
+#pragma once
+
+float2 USH_Rotate2D(float2 p, float angle)
+{
+    float s = sin(angle);
+    float c = cos(angle);
+    return float2(p.x * c - p.y * s, p.x * s + p.y * c);
+}
+
+float3 USH_HSVtoRGB(float3 c)
+{
+    float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * lerp(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
+float USH_SDFPyramid(float3 p, float h)
+{
+    float m2 = h * h + 0.25;
+    p.xz = abs(p.xz);
+    p.xz = (p.z > p.x) ? p.zx : p.xz;
+    p.xz -= 0.5;
+
+    float3 q = float3(p.z, h * p.y - 0.5 * p.x, h * p.x + 0.5 * p.y);
+    float s = max(-q.x, 0.0);
+    float t = clamp((q.y - 0.5 * p.z) / (m2 + 0.25), 0.0, 1.0);
+
+    float a = m2 * (q.x + s) * (q.x + s) + q.y * q.y;
+    float b = m2 * (q.x + 0.5 * t) * (q.x + 0.5 * t) + (q.y - m2 * t) * (q.y - m2 * t);
+
+    float d2 = min(q.y, -q.x * m2 - q.y * 0.5) > 0.0 ? 0.0 : min(a, b);
+    return sqrt((d2 + q.z * q.z) / m2) * sign(max(q.z, -p.y));
+}
+
+float USH_SDFOctahedron(float3 p, float s)
+{
+    p = abs(p);
+    return (p.x + p.y + p.z - s) * 0.57735027;
+}
+
+float USH_Noise2D(float2 p)
+{
+    float2 i = floor(p);
+    float2 f = frac(p);
+    float2 u = f * f * (3.0 - 2.0 * f);
+
+    float3 p3 = frac(float3(i.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    float h00 = frac((p3.x + p3.y) * p3.z);
+
+    return h00;
+}
