@@ -1,0 +1,19 @@
+{
+  "audioGain": 1.8,
+  "autoPilot": true,
+  "customText": "DAD PUNK",
+  "floorMultiplier": 0.4,
+  "halloweenMode": false,
+  "laserMultiplier": 0.5,
+  "logoMultiplier": 1,
+  "logoStyle": 0,
+  "masterBrightness": 0.85,
+  "name": "LedWall",
+  "paletteIndex": 0,
+  "particleMultiplier": 1,
+  "pyramidMultiplier": 0,
+  "pyramidPattern": 0,
+  "sceneIndex": 3,
+  "sceneName": "ModularMixer",
+  "skyMultiplier": 1
+}

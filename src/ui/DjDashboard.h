@@ -45,20 +45,16 @@ public:
     void setUiScale(float scale) { m_uiScale = scale; }
     bool isVsyncEnabled() const { return m_vsync; }
 
-    // Trigger spacebar drop from window loop if desired
-    void triggerSpacebarDrop(Graphics::AudioVisualizerParams& params);
+    void triggerSpacebarDrop();
 
 private:
     void renderHeaderBar();
-    void renderNextDropQueueBar(Graphics::AudioVisualizerParams& params);
-    void renderHeroShapeIngredient(Graphics::AudioVisualizerParams& params);
-    void renderBackgroundIngredient(Graphics::AudioVisualizerParams& params);
-    void renderStageFxIngredients(Graphics::AudioVisualizerParams& params);
-    void renderFluidityMotionPanel(Graphics::AudioVisualizerParams& params);
-    void renderVibeRecipesAndColors(Graphics::AudioVisualizerParams& params);
+    void renderTopStatusBar(float deltaTime);
+    void renderMoodButtons();
+    void renderTextAndPalettePanel();
+    void renderKidSafeAndLayerControls();
     void renderAudioSpectrumPanel();
     void renderProjectorOutputPanel();
-    void renderShaderCompilerStatus();
     void renderLivePreview();
 
     Graphics::WindowManager* m_windowManager;
@@ -79,16 +75,14 @@ private:
     std::vector<Audio::AudioDeviceInfo> m_audioDevices;
     std::vector<std::string> m_presetList;
     int m_currentPresetIndex = 0;
-    char m_newPresetName[64] = "MyCustomRecipe";
+    char m_newPresetName[64] = "MyDadPunkVibe";
 
     float m_fps = 60.0f;
     float m_frameTimeMs = 16.6f;
     float m_uiScale = 1.0f;
     float m_appliedUiScale = 1.0f;
-    int m_selectedScaleIndex = 0; // Default to 100% / native scale
-    std::string m_lastCompilerError;
-    std::string m_lastReloadedShader;
-    float m_reloadBannerTimer = 0.0f;
+    int m_selectedScaleIndex = 0;
+    float m_silentWarningTimer = 0.0f;
 };
 
 } // namespace Visualizer::UI

@@ -1,0 +1,19 @@
+{
+  "audioGain": 1.8,
+  "autoPilot": true,
+  "customText": "DAD PUNK",
+  "floorMultiplier": 1,
+  "halloweenMode": false,
+  "laserMultiplier": 1.2,
+  "logoMultiplier": 0.5,
+  "logoStyle": 0,
+  "masterBrightness": 0.85,
+  "name": "AlivePyramid",
+  "paletteIndex": 0,
+  "particleMultiplier": 0.6,
+  "pyramidMultiplier": 1,
+  "pyramidPattern": 0,
+  "sceneIndex": 0,
+  "sceneName": "ModularMixer",
+  "skyMultiplier": 0.4
+}
