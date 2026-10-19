@@ -1,12 +1,43 @@
 #include "PresetManager.h"
-#include <windows.h>
+#if defined(_WIN32)
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #include <windows.h>
+#elif defined(__APPLE__)
+    #include <mach-o/dyld.h>
+    #include <cstdlib>
+#endif
 #include "../../third_party/json/json.hpp"
 #include "../core/Logger.h"
 #include <fstream>
 #include <filesystem>
 #include <iostream>
+#include <algorithm>
 
 namespace Visualizer::Control {
+
+static std::filesystem::path GetBaseAppDir() {
+#if defined(_WIN32)
+    wchar_t exePathBuf[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, exePathBuf, MAX_PATH);
+    return std::filesystem::path(exePathBuf).parent_path();
+#elif defined(__APPLE__)
+    char pathBuf[4096];
+    uint32_t size = sizeof(pathBuf);
+    if (_NSGetExecutablePath(pathBuf, &size) == 0) {
+        std::filesystem::path exeDir = std::filesystem::weakly_canonical(std::filesystem::path(pathBuf)).parent_path();
+        std::error_code ec;
+        if (std::filesystem::exists(exeDir / "../Resources/presets", ec)) {
+            return std::filesystem::weakly_canonical(exeDir / "../Resources", ec);
+        }
+        return exeDir;
+    }
+    return std::filesystem::current_path();
+#else
+    return std::filesystem::current_path();
+#endif
+}
 
 void VisualizerPreset::applyToParams(Graphics::AudioVisualizerParams& params) const {
     params.BackgroundType = backgroundType;
@@ -105,44 +136,26 @@ void VisualizerPreset::captureFromParams(const Graphics::AudioVisualizerParams& 
     autoPilot = autoP;
 }
 
-
-static void LogPreset(const std::string& msg) {
-    std::ofstream f("DJVisualizer.log", std::ios::app);
-    f << "[PRESET] " << msg << std::endl;
-    f.flush();
-}
-
 PresetManager::PresetManager(const std::string& presetsDirectory)
     : m_presetsDir(presetsDirectory) {
 }
 
 void PresetManager::initialize() {
-    Log("initialize started for dir: " + m_presetsDir);
+    Log("PresetManager::initialize started for dir: " + m_presetsDir);
     std::error_code ec;
-    std::string dir = m_presetsDir;
-    if (!std::filesystem::exists(dir, ec)) {
-        wchar_t exePathBuf[MAX_PATH];
-        GetModuleFileNameW(nullptr, exePathBuf, MAX_PATH);
-        std::filesystem::path exeDir = std::filesystem::path(exePathBuf).parent_path();
-        dir = (exeDir / m_presetsDir).string();
-        m_presetsDir = dir;
+    if (!std::filesystem::exists(m_presetsDir, ec)) {
+        m_presetsDir = (GetBaseAppDir() / m_presetsDir).string();
     }
     Log("Resolved presets directory to: " + m_presetsDir);
     std::filesystem::create_directories(m_presetsDir, ec);
 
-    // Save default presets if folder empty
     auto existing = getPresetNames();
     Log("Existing presets count: " + std::to_string(existing.size()));
     if (existing.empty()) {
-        Log("Saving default DaftAlive preset...");
         savePreset(createDaftAlivePreset());
-        Log("Saving default LiquidCyber preset...");
         savePreset(createLiquidCyberPreset());
-        Log("Saving default SynthwaveHorizon preset...");
         savePreset(createSynthwaveHorizonPreset());
-        Log("Saving default GyroLaserArena preset...");
         savePreset(createGyroLaserArenaPreset());
-        Log("Saving default AcidPlasma preset...");
         savePreset(createAcidPlasmaPreset());
         Log("Default presets saved successfully");
     }
@@ -150,37 +163,27 @@ void PresetManager::initialize() {
 
 std::vector<std::string> PresetManager::getPresetNames() {
     std::vector<std::string> names;
-    
-    wchar_t exePathBuf[MAX_PATH] = {};
-    GetModuleFileNameW(nullptr, exePathBuf, MAX_PATH);
-    std::filesystem::path exeDir = std::filesystem::path(exePathBuf).parent_path();
-    std::filesystem::path pDir = exeDir / m_presetsDir;
-    
-    std::wstring searchPattern = (pDir / L"*.json").wstring();
-
-    WIN32_FIND_DATAW findData = {};
-    HANDLE hFind = FindFirstFileW(searchPattern.c_str(), &findData);
-    if (hFind != INVALID_HANDLE_VALUE) {
-        do {
-            if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-                std::wstring fname = findData.cFileName;
-                if (fname.size() > 5 && fname.substr(fname.size() - 5) == L".json") {
-                    std::wstring stem = fname.substr(0, fname.size() - 5);
-                    int len = WideCharToMultiByte(CP_UTF8, 0, stem.c_str(), (int)stem.size(), nullptr, 0, nullptr, nullptr);
-                    std::string s(len, 0);
-                    WideCharToMultiByte(CP_UTF8, 0, stem.c_str(), (int)stem.size(), s.data(), len, nullptr, nullptr);
-                    names.push_back(s);
-                }
-            }
-        } while (FindNextFileW(hFind, &findData));
-        FindClose(hFind);
+    std::error_code ec;
+    std::filesystem::path pDir(m_presetsDir);
+    if (!std::filesystem::exists(pDir, ec)) {
+        pDir = GetBaseAppDir() / m_presetsDir;
     }
+
+    if (std::filesystem::exists(pDir, ec)) {
+        for (const auto& entry : std::filesystem::directory_iterator(pDir, ec)) {
+            if (!ec && entry.is_regular_file(ec) && entry.path().extension() == ".json") {
+                names.push_back(entry.path().stem().string());
+            }
+        }
+    }
+    std::sort(names.begin(), names.end());
     return names;
 }
 
 bool PresetManager::savePreset(const VisualizerPreset& preset) {
-    if (!std::filesystem::exists(m_presetsDir)) {
-        std::filesystem::create_directories(m_presetsDir);
+    std::error_code ec;
+    if (!std::filesystem::exists(m_presetsDir, ec)) {
+        std::filesystem::create_directories(m_presetsDir, ec);
     }
 
     Json::Value root(Json::Value::Object{});

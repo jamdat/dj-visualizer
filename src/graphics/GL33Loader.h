@@ -41,6 +41,13 @@
 
     #ifndef GL_TEXTURE0
         #define GL_TEXTURE0                       0x84C0
+        #define GL_TEXTURE1                       0x84C1
+        #define GL_TEXTURE2                       0x84C2
+        #define GL_TEXTURE3                       0x84C3
+        #define GL_TEXTURE4                       0x84C4
+        #define GL_TEXTURE5                       0x84C5
+        #define GL_TEXTURE6                       0x84C6
+        #define GL_TEXTURE7                       0x84C7
         #define GL_CLAMP_TO_EDGE                  0x812F
         #define GL_ARRAY_BUFFER                   0x8892
         #define GL_UNIFORM_BUFFER                 0x8A11
