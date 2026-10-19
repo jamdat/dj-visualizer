@@ -30,6 +30,7 @@ _deps/
 Thumbs.db
 Desktop.ini
 .DS_Store
+window_config.json
 
 # Upstream Dear ImGui CI workflows (avoid running in our repo)
 third_party/imgui/.github/
