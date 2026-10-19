@@ -177,7 +177,6 @@ else()
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:DJVisualizer>/presets
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders $<TARGET_FILE_DIR:DJVisualizer>/src/shaders
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/presets $<TARGET_FILE_DIR:DJVisualizer>/presets
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/ue5_bridge $<TARGET_FILE_DIR:DJVisualizer>/ue5_bridge
-        COMMENT "Copying HLSL shaders, presets and bridge files to output directory"
+        COMMENT "Copying HLSL shaders and presets to output directory"
     )
 endif()
