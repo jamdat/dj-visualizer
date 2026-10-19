@@ -1,0 +1,19 @@
+{
+  "audioGain": 1.8,
+  "autoPilot": true,
+  "customText": "DAD PUNK",
+  "floorMultiplier": 0.8,
+  "halloweenMode": true,
+  "laserMultiplier": 0.6,
+  "logoMultiplier": 0.5,
+  "logoStyle": 0,
+  "masterBrightness": 0.85,
+  "name": "SpookyPunk",
+  "paletteIndex": 2,
+  "particleMultiplier": 1.2,
+  "pyramidMultiplier": 0.85,
+  "pyramidPattern": 1,
+  "sceneIndex": 2,
+  "sceneName": "ModularMixer",
+  "skyMultiplier": 1
+}

@@ -16,7 +16,14 @@ struct Float4 {
     float w = 0.0f;
 };
 
-// Matches HLSL cbuffer / GLSL std140 uniform AudioVisualizerParams : register(b0) (16-byte aligned)
+struct UInt4 {
+    uint32_t x = 0;
+    uint32_t y = 0;
+    uint32_t z = 0;
+    uint32_t w = 0;
+};
+
+// Matches HLSL cbuffer / GLSL std140 uniform AudioVisualizerParams : register(b0) (16-byte aligned, 272 bytes)
 struct alignas(16) AudioVisualizerParams {
     // Vector 1 (offset 0): General Time & Screen
     float Time = 0.0f;
@@ -45,7 +52,7 @@ struct alignas(16) AudioVisualizerParams {
     float CustomParam4 = 0.0f; // Rotation / Tilt
     float CustomParam5 = 1.0f; // Audio Sensitivity
     float CustomParam6 = 0.0f; // Laser Fan / Array Spread
-    float CustomParam7 = 0.0f; // Glitch Trigger Override
+    float CustomParam7 = 0.0f; // Reserved / Override
 
     // Vector 6 (offset 80): Primary Palette Color
     Float4 ColorPrimary = { 1.0f, 0.15f, 0.0f, 1.0f }; // Daft Orange / Red
@@ -56,43 +63,45 @@ struct alignas(16) AudioVisualizerParams {
     // Vector 8 (offset 112): Accent Palette Color
     Float4 ColorAccent = { 1.0f, 0.9f, 0.1f, 1.0f }; // Yellow Gold
 
-    // Vector 9 (offset 128): Global Render FX Overrides
+    // Vector 9 (offset 128): Global Render FX & Photosafety
     float BloomIntensity = 1.0f;
-    float GlitchRate = 0.3f;
+    float GlitchRate = 0.0f;
     float WireframeDensity = 1.0f;
-    float StrobeFlash = 0.0f;
+    float MasterBrightness = 0.85f; // 0.0 to 1.0 (default 0.85 kid-safe cap)
 
-    // Vector 10 (offset 144): Ingredient Layers
-    int BackgroundType = 0;    // 0 = Starfield & Nebula, 1 = Warp Tunnel, 2 = LED Soundwave Void, 3 = Stage Arena, 4 = Obsidian Ocean
-    int ShapeType = 0;         // 0 = Liquid Blobs, 1 = Alive Pyramid, 2 = Gyroscope Rings, 3 = Obsidian Monolith, 4 = Torus Knot, 5 = Hypercube Tesseract, 6 = Geodesic Sphere, 7 = Crystal Cluster, 8 = None
-    float FluidityAmount = 1.0f; // 0.0 to 2.0 (fluid ripples, domain warping)
-    float ParticleIntensity = 1.0f; // 0.0 to 2.0 (audio firefly particles)
+    // Vector 10 (offset 144): Dad Punk Primary Layers
+    float PyramidWeight = 1.0f;      // 0.0 to 1.5 (Alive 4-sided LED pyramid)
+    float LogoWeight = 1.0f;         // 0.0 to 1.5 ("DAD PUNK" LED dot-matrix / chrome logo)
+    float SpookyWeight = 0.0f;       // 0.0 to 1.5 (Halloween moon, bats, jack-o'-lanterns)
+    float TrailsWeight = 0.0f;       // 0.0 to 1.5 (TRON light-cycle trails on grid)
 
-    // Vector 11 (offset 160): Extra Dynamic Controls
-    float LaserIntensity = 1.0f; // 0.0 to 2.0 (volumetric laser matrix)
-    float VortexTwist = 0.0f;    // -3.14 to 3.14 (rotational fluid torque)
+    // Vector 11 (offset 160): Modes & Dynamic Controls
+    int PyramidPattern = 0;          // 0 = Horizontal VU strips, 1 = Rising Chevrons, 2 = Scanner Sweep, 3 = Solid Glow, 4 = Rainbow
+    int LogoStyle = 0;               // 0 = LED Dot-Matrix, 1 = Chrome Bevel
+    float SafetyDamping = 1.0f;      // Photosensitivity limiter state (1.0 = normal, <1.0 = damped)
+    float ParticleIntensity = 1.0f;  // 0.0 to 2.0 (bats or stage sparks)
+
+    // Vector 12 (offset 176): Environment & Lasers
+    float LaserIntensity = 1.0f;     // 0.0 to 2.0 (volumetric apex lasers)
+    float SkyLayerWeight = 1.0f;     // 0.0 to 1.5 (starfield & moon)
+    float FloorLayerWeight = 1.0f;   // 0.0 to 1.5 (3D ray-plane TRON grid & mirror floor)
     float Bpm = 128.0f;
+
+    // Vector 13 (offset 192): Additional Scene Weights & Screen
     float AspectRatio = 1.777778f;
+    float HorizonWeight = 0.5f;      // Horizon glow
+    float LedWallWeight = 0.0f;      // Full LED wall
+    float ShapeCrossfade = 1.0f;     // Smooth scene crossfade envelope (0.0 to 1.0)
 
-    // Vector 12 (offset 176): Duplication & Modifiers
-    int DuplicationMode = 0;     // 0 = Single, 1 = Orbital Ring, 2 = Triad Array, 3 = Radial Kaleidoscope, 4 = Infinite Depth
-    float DuplicationParam0 = 1.0f; // Orbit Radius / Spacing
-    float DuplicationParam1 = 0.5f; // Satellite Scale
-    float CameraDrift = 1.0f;    // 0.0 = Static, 1.0 = Animated camera orbit/drift
-
-    // Vector 13 (offset 192): Composable 3D Environment Layer Weights
-    float SkyLayerWeight = 1.0f;       // Deep Space Starfield & Nebula (0.0 to 1.5)
-    float WarpLayerWeight = 0.0f;      // Relativistic Hyperdrive Streaks & Conduit (0.0 to 1.5)
-    float FloorLayerWeight = 1.0f;     // 3D Ray-Plane TRON Grid & Obsidian Mirror Floor (0.0 to 1.5)
-    float SoundwaveLayerWeight = 0.5f; // 3D Horizon Oscilloscope & FFT Equalizer Wall (0.0 to 1.5)
-
-    // Vector 14 (offset 208): HUD, Material Mode & Stage Framing
-    float HudLayerWeight = 0.3f;       // Sci-Fi HUD Telemetry Rings & Hex Framing (0.0 to 1.5)
-    int MaterialMode = 0;              // 0 = Smoked Obsidian & Neon (TRON), 1 = Alive LED Matrix (Daft), 2 = Sci-Fi HUD, 3 = Liquid Chrome
-    float StageTrussWeight = 0.5f;     // 3D Overhead Concert Truss Framing (0.0 to 1.5)
-    float ShapeCrossfade = 1.0f;       // Smooth transition envelope (0.0 to 1.0)
+    // Vector 14..17 (offset 208..271): Custom Text (16 packed ASCII characters)
+    UInt4 CustomText[4] = {
+        { 'D', 'A', 'D', ' ' },
+        { 'P', 'U', 'N', 'K' },
+        { 0, 0, 0, 0 },
+        { 0, 0, 0, 0 }
+    };
 };
 
+static_assert(sizeof(AudioVisualizerParams) == 272, "AudioVisualizerParams must be exactly 272 bytes for std140 layout");
+
 } // namespace Visualizer::Graphics
-
-

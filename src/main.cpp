@@ -114,24 +114,11 @@ static int RunVisualizerApp() {
         auto* compiler = renderer.getShaderCompiler();
         bool bMaster = compiler->loadPixelShader("ModularMixer", "src/shaders/ModularMixer.hlsl", nullptr);
         Log(std::string("[INFO] ModularMixer: ") + (bMaster ? "OK" : compiler->getLastError("ModularMixer")));
-        bool b1 = compiler->loadPixelShader("AlivePyramid", "src/shaders/AlivePyramid.hlsl", nullptr);
-        Log(std::string("[INFO] AlivePyramid: ") + (b1 ? "OK" : compiler->getLastError("AlivePyramid")));
-        bool b2 = compiler->loadPixelShader("SynthwaveGrid", "src/shaders/SynthwaveGrid.hlsl", nullptr);
-        Log(std::string("[INFO] SynthwaveGrid: ") + (b2 ? "OK" : compiler->getLastError("SynthwaveGrid")));
-        bool b3 = compiler->loadPixelShader("RaymarchedCrystals", "src/shaders/RaymarchedCrystals.hlsl", nullptr);
-        Log(std::string("[INFO] RaymarchedCrystals: ") + (b3 ? "OK" : compiler->getLastError("RaymarchedCrystals")));
-        bool b4 = compiler->loadPixelShader("ConcertLasers", "src/shaders/ConcertLasers.hlsl", nullptr);
-        Log(std::string("[INFO] ConcertLasers: ") + (b4 ? "OK" : compiler->getLastError("ConcertLasers")));
-        bool b5 = compiler->loadPixelShader("PostProcessGlitch", "src/shaders/PostProcessGlitch.hlsl", nullptr);
-        Log(std::string("[INFO] PostProcessGlitch: ") + (b5 ? "OK" : compiler->getLastError("PostProcessGlitch")));
 
         // 7. Setup Visualizer Parameters & Defaults
         Graphics::AudioVisualizerParams params;
         std::string currentSceneShaderName = "ModularMixer";
-
-        Control::VisualizerPreset defaultPreset = Control::PresetManager::createDaftAlivePreset();
-        defaultPreset.applyToParams(params);
-        Log("[INFO] Default recipe applied, starting main loop...");
+        Log("[INFO] ModularMixer loaded, starting main loop...");
 
         windowManager.setResizeCallback([&](int w, int h, bool isStage) {
             if (isStage) renderer.resizeStage(w, h);
@@ -140,7 +127,7 @@ static int RunVisualizerApp() {
 
         windowManager.setKeyCallback([&](int key, int action) {
             if (key == GLFW_KEY_SPACE && action == GLFW_PRESS && windowManager.isSingleScreenFullscreen()) {
-                autoPilot.triggerDropTransition(params);
+                autoPilot.triggerDropTransition();
             }
         });
 
@@ -183,20 +170,25 @@ static int RunVisualizerApp() {
             // B. Update Beat & Onset Detector
             beatDetector.update(bands, deltaTime);
 
-            // C. Update Shader Audio Uniforms
-            params.AudioSubBass = bands.subBass;
-            params.AudioKick = bands.bass;
-            params.AudioLowMid = bands.lowMid;
-            params.AudioHighMid = bands.highMid;
-            params.AudioTreble = bands.treble;
-            params.BeatPulse = beatDetector.getBeatPulse();
-            params.DropIntensity = beatDetector.getDropIntensity();
-            params.EnergyAccumulator = audioAnalyzer.getEnergyAccumulator();
-            params.Bpm = beatDetector.getBpm();
+            // C. Pack Audio Frame Data
+            Control::AudioFrameData audioData;
+            audioData.subBass = bands.subBass;
+            audioData.bass = bands.bass;
+            audioData.lowMid = bands.lowMid;
+            audioData.highMid = bands.highMid;
+            audioData.treble = bands.treble;
+            audioData.beatPulse = beatDetector.getBeatPulse();
+            audioData.dropIntensity = beatDetector.getDropIntensity();
+            audioData.energyAccumulator = audioAnalyzer.getEnergyAccumulator();
+            audioData.bpm = beatDetector.getBpm();
+            audioData.rms = bands.subBass + bands.bass + bands.lowMid + bands.highMid + bands.treble;
+            audioData.isSilent = (audioData.rms < 0.005f);
 
             // D. Update Auto-Pilot State Machine
-            autoPilot.update(deltaTime, beatDetector, params);
-            params.StrobeFlash = 0.0f;
+            autoPilot.update(deltaTime, beatDetector, audioData);
+
+            // E. Resolve GPU Parameters Non-Destructively
+            autoPilot.resolveGpuParams(audioData, params);
 
             // E. Live Shader & Texture Hot-Reloading Check (Every 100ms)
             hotReloadTimer += deltaTime;

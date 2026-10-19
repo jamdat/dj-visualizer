@@ -8,7 +8,7 @@
 
 cbuffer AudioVisualizerParams : register(b0)
 {
-    // Vector 1: Time & Screen
+    // Vector 1: General Time & Screen
     float Time;
     float DeltaTime;
     float2 Resolution;
@@ -34,49 +34,50 @@ cbuffer AudioVisualizerParams : register(b0)
     // Vector 5: UI Custom Parameters 4..7
     float CustomParam4; // Rotation / Tilt
     float CustomParam5; // Audio Sensitivity
-    float CustomParam6; // Laser Fan Spread
-    float CustomParam7; // Glitch Trigger Override
+    float CustomParam6; // Laser Fan / Array Spread
+    float CustomParam7; // Reserved / Override
 
-    // Vector 6: Palette Colors
+    // Vector 6: Primary Palette Color
     float4 ColorPrimary;
+
+    // Vector 7: Secondary Palette Color
     float4 ColorSecondary;
+
+    // Vector 8: Accent Palette Color
     float4 ColorAccent;
 
-    // Vector 7: Global FX Overrides
+    // Vector 9: Global Render FX & Photosafety
     float BloomIntensity;
     float GlitchRate;
     float WireframeDensity;
-    float StrobeFlash;
+    float MasterBrightness;
 
-    // Vector 10: Ingredient Layers
-    int BackgroundType;    // 0 = Starfield & Nebula, 1 = Warp Tunnel, 2 = LED Soundwave Void, 3 = Stage Arena, 4 = Obsidian Ocean
-    int ShapeType;         // 0 = Liquid Blobs, 1 = Alive Pyramid, 2 = Gyroscope Rings, 3 = Obsidian Monolith, 4 = Torus Knot, 5 = Hypercube Tesseract, 6 = Geodesic Sphere, 7 = Crystal Cluster, 8 = None
-    float FluidityAmount;  // Fluid Morph amount
-    float ParticleIntensity; // Audio sparks
+    // Vector 10: Dad Punk Primary Layers
+    float PyramidWeight;      // 0.0 to 1.5 (Alive 4-sided LED pyramid)
+    float LogoWeight;         // 0.0 to 1.5 ("DAD PUNK" LED dot-matrix / chrome logo)
+    float SpookyWeight;       // 0.0 to 1.5 (Halloween moon, bats, jack-o'-lanterns)
+    float TrailsWeight;       // 0.0 to 1.5 (TRON light-cycle trails on grid)
 
-    // Vector 11: Extra Dynamic Controls
-    float LaserIntensity;  // Volumetric lasers
-    float VortexTwist;     // Bass Vortex torque
+    // Vector 11: Modes & Dynamic Controls
+    int PyramidPattern;       // 0 = Horizontal VU strips, 1 = Rising Chevrons, 2 = Scanner Sweep, 3 = Solid Glow, 4 = Rainbow
+    int LogoStyle;            // 0 = LED Dot-Matrix, 1 = Chrome Bevel
+    float SafetyDamping;      // Photosensitivity limiter state (1.0 = normal, <1.0 = damped)
+    float ParticleIntensity;  // 0.0 to 2.0 (bats or stage sparks)
+
+    // Vector 12: Environment & Lasers
+    float LaserIntensity;     // 0.0 to 2.0 (volumetric apex lasers)
+    float SkyLayerWeight;     // 0.0 to 1.5 (starfield & moon)
+    float FloorLayerWeight;   // 0.0 to 1.5 (3D ray-plane TRON grid & mirror floor)
     float Bpm;
+
+    // Vector 13: Additional Scene Weights & Screen
     float AspectRatio;
+    float HorizonWeight;      // Horizon glow
+    float LedWallWeight;      // Full LED wall
+    float ShapeCrossfade;     // Smooth scene crossfade envelope (0.0 to 1.0)
 
-    // Vector 12: Duplication & Macro Modifiers
-    int DuplicationMode;   // 0 = Single, 1 = Orbital Ring, 2 = Triad Array, 3 = Radial Kaleidoscope, 4 = Infinite Depth
-    float DuplicationParam0; // Orbit Radius / Spacing
-    float DuplicationParam1; // Satellite Scale
-    float CameraDrift;    // Camera drift toggle
-
-    // Vector 13: Composable 3D Environment Layer Weights
-    float SkyLayerWeight;       // Deep Space Starfield & Nebula (0.0 to 1.5)
-    float WarpLayerWeight;      // Relativistic Hyperdrive Streaks & Conduit (0.0 to 1.5)
-    float FloorLayerWeight;     // 3D Ray-Plane TRON Grid & Obsidian Mirror Floor (0.0 to 1.5)
-    float SoundwaveLayerWeight; // 3D Horizon Oscilloscope & FFT Equalizer Wall (0.0 to 1.5)
-
-    // Vector 14: HUD, Material Mode & Stage Framing
-    float HudLayerWeight;       // Sci-Fi HUD Telemetry Rings & Hex Framing (0.0 to 1.5)
-    int MaterialMode;           // 0 = Smoked Obsidian & Neon (TRON), 1 = Alive LED Matrix (Daft), 2 = Sci-Fi HUD, 3 = Liquid Chrome
-    float StageTrussWeight;     // 3D Overhead Concert Truss Framing (0.0 to 1.5)
-    float ShapeCrossfade;       // Smooth transition envelope (0.0 to 1.0)
+    // Vector 14..17: Custom Text (16 packed ASCII characters)
+    uint4 CustomText[4];
 };
 
 
@@ -403,31 +404,6 @@ float2 FluidDomainWarp(float2 p, float time, float audioReact)
     return (r - 0.5) * 2.0 * audioReact;
 }
 
-
-// -----------------------------------------------------------------------------
-// Realistic Concert Strobe & Stage Shutter FX
-// -----------------------------------------------------------------------------
-float3 ApplyStrobe(float3 sceneColor, float strobeAmount, float time)
-{
-    if (strobeAmount <= 0.001) return sceneColor;
-
-    // 20 Hz stroboscopic shutter (1 frame ON, 2 frames OFF at 60 FPS)
-    // 33% duty cycle flash window produces authentic freeze-frame illusion
-    float strobeCycle = frac(time * 20.0);
-    float flashShutter = step(0.67, strobeCycle);
-
-    // Strobe flash intensity envelope
-    float strobeIntensity = strobeAmount * flashShutter;
-
-    // Direct scene illumination & specular/edge ignition (preserves 3D structure & colors)
-    float3 flashedColor = sceneColor * (1.0 + strobeIntensity * 3.8);
-    flashedColor += (sceneColor + 0.08) * (strobeIntensity * 1.4);
-    flashedColor += float3(0.92, 0.96, 1.0) * (strobeIntensity * 0.35);
-
-    // Off-phase shutter contrast dip deepens the stroboscopic persistence
-    float dip = 1.0 - (strobeAmount * (1.0 - flashShutter) * 0.25);
-    return lerp(sceneColor * dip, flashedColor, flashShutter);
-}
 
 #endif // COMMON_HLSL
 
