@@ -21,6 +21,8 @@ _deps/
 .vscode/
 .agents/
 .gemini/
+GEMINI.md
+PLAN.md
 
 # OS / Temporary / Logs
 *.tmp
