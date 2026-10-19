@@ -84,14 +84,29 @@ std::vector<std::string> PresetManager::getPresetNames() {
     return names;
 }
 
+static std::string SanitizePresetName(const std::string& raw) {
+    std::string clean;
+    for (char c : raw) {
+        if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == ' ') {
+            clean.push_back(c);
+        }
+    }
+    if (clean.empty()) {
+        clean = "Default";
+    }
+    return clean;
+}
+
 bool PresetManager::savePreset(const VisualizerPreset& preset) {
     std::error_code ec;
     if (!std::filesystem::exists(m_presetsDir, ec)) {
         std::filesystem::create_directories(m_presetsDir, ec);
     }
 
+    std::string safeName = SanitizePresetName(preset.name);
+
     Json::Value root(Json::Value::Object{});
-    root["name"] = preset.name;
+    root["name"] = safeName;
     root["sceneName"] = preset.sceneName;
     root["sceneIndex"] = preset.sceneIndex;
 
@@ -112,7 +127,7 @@ bool PresetManager::savePreset(const VisualizerPreset& preset) {
     root["audioGain"] = preset.audioGain;
     root["autoPilot"] = preset.autoPilot;
 
-    std::string filePath = m_presetsDir + "/" + preset.name + ".json";
+    std::string filePath = m_presetsDir + "/" + safeName + ".json";
     std::ofstream file(filePath);
     if (!file.is_open()) return false;
 
@@ -121,7 +136,8 @@ bool PresetManager::savePreset(const VisualizerPreset& preset) {
 }
 
 bool PresetManager::loadPreset(const std::string& presetName, VisualizerPreset& outPreset) {
-    std::string filePath = m_presetsDir + "/" + presetName + ".json";
+    std::string safeName = SanitizePresetName(presetName);
+    std::string filePath = m_presetsDir + "/" + safeName + ".json";
     if (!std::filesystem::exists(filePath)) return false;
 
     std::ifstream file(filePath);

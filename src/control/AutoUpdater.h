@@ -51,6 +51,7 @@ private:
     mutable std::mutex m_mutex;
     std::string m_latestVersion;
     std::string m_downloadUrl;
+    std::string m_checksumUrl;
     std::string m_statusMessage;
 
     std::thread m_workerThread;

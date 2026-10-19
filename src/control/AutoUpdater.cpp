@@ -129,12 +129,15 @@ void AutoUpdater::checkForUpdatesAsync() {
             std::string targetAsset = "DJVisualizer-Windows-x64.zip";
 #endif
             std::string assetUrl;
+            std::string checksumUrl;
             if (j["assets"].is_array()) {
                 for (const auto& asset : j["assets"].as_array()) {
                     if (asset["name"].is_string() && asset["browser_download_url"].is_string()) {
-                        if (asset["name"].as_string() == targetAsset) {
+                        std::string name = asset["name"].as_string();
+                        if (name == targetAsset) {
                             assetUrl = asset["browser_download_url"].as_string();
-                            break;
+                        } else if (name == "SHA256SUMS.txt" || name == "sha256.txt") {
+                            checksumUrl = asset["browser_download_url"].as_string();
                         }
                     }
                 }
@@ -146,11 +149,16 @@ void AutoUpdater::checkForUpdatesAsync() {
                 Log("[SECURITY] Rejected unexpected update download URL: " + assetUrl);
                 assetUrl.clear();
             }
+            if (!checksumUrl.empty() && checksumUrl.rfind(expectedPrefix, 0) != 0) {
+                Log("[SECURITY] Rejected unexpected checksum download URL: " + checksumUrl);
+                checksumUrl.clear();
+            }
 
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 m_latestVersion = tagName;
                 m_downloadUrl = assetUrl;
+                m_checksumUrl = checksumUrl;
                 if (tagName != m_currentVersion && !assetUrl.empty()) {
                     m_statusMessage = "Update available: " + tagName;
                     m_state.store(UpdateState::UpdateAvailable);
@@ -182,9 +190,11 @@ void AutoUpdater::downloadAndInstallUpdateAsync() {
 
     m_workerThread = std::thread([this]() {
         std::string url;
+        std::string checkUrl;
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             url = m_downloadUrl;
+            checkUrl = m_checksumUrl;
         }
 
         std::filesystem::path appDir = GetAppDirectory();
@@ -203,11 +213,71 @@ void AutoUpdater::downloadAndInstallUpdateAsync() {
             return;
         }
 
+        // Cryptographic integrity validation (SHA-256)
+        if (!checkUrl.empty()) {
+            std::filesystem::path checkPath = stageDir / "SHA256SUMS.txt";
+            std::string checkDlCmd = "curl -sL -o \"" + checkPath.string() + "\" \"" + checkUrl + "\"";
+            std::system(checkDlCmd.c_str());
+
+            if (std::filesystem::exists(checkPath, ec)) {
+                std::ifstream csFile(checkPath);
+                std::string line;
+#if defined(__APPLE__)
+                std::string targetAsset = "DJVisualizer-macOS-arm64.zip";
+#else
+                std::string targetAsset = "DJVisualizer-Windows-x64.zip";
+#endif
+                std::string expectedHash;
+                while (std::getline(csFile, line)) {
+                    if (line.find(targetAsset) != std::string::npos) {
+                        std::istringstream iss(line);
+                        iss >> expectedHash;
+                        break;
+                    }
+                }
+
+                if (!expectedHash.empty()) {
+                    std::string actualHash;
+#if defined(_WIN32)
+                    std::string hashCmd = "certutil -hashfile \"" + zipPath.string() + "\" SHA256";
+                    std::string hashOut = RunCommandCaptureStdout(hashCmd);
+                    std::istringstream hss(hashOut);
+                    std::string hline;
+                    while (std::getline(hss, hline)) {
+                        hline.erase(std::remove_if(hline.begin(), hline.end(), ::isspace), hline.end());
+                        if (hline.length() == 64 && hline.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos) {
+                            actualHash = hline;
+                            break;
+                        }
+                    }
+#elif defined(__APPLE__)
+                    std::string hashCmd = "shasum -a 256 \"" + zipPath.string() + "\"";
+                    std::string hashOut = RunCommandCaptureStdout(hashCmd);
+                    std::istringstream hss(hashOut);
+                    hss >> actualHash;
+#endif
+                    auto toLower = [](std::string s) {
+                        for (auto& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                        return s;
+                    };
+
+                    if (!actualHash.empty() && toLower(actualHash) != toLower(expectedHash)) {
+                        Log("[SECURITY] SHA-256 checksum mismatch! Expected: " + expectedHash + " Actual: " + actualHash);
+                        std::lock_guard<std::mutex> lock(m_mutex);
+                        m_statusMessage = "Security error: Checksum mismatch";
+                        m_state.store(UpdateState::Error);
+                        std::filesystem::remove_all(stageDir, ec);
+                        return;
+                    }
+                    Log("[SECURITY] SHA-256 checksum verified successfully: " + actualHash);
+                }
+            }
+        }
+
 #if defined(__APPLE__)
         // On macOS: unzip, strip Gatekeeper quarantine (xattr -cr), replace .app bundle, and relaunch
         std::string unzipCmd = "unzip -q -o \"" + zipPath.string() + "\" -d \"" + stageDir.string() + "\" && xattr -cr \"" + stageDir.string() + "\"";
         if (std::system(unzipCmd.c_str()) == 0) {
-            // Locate enclosing .app bundle if running from DJVisualizer.app/Contents/MacOS
             std::filesystem::path bundleRoot = appDir;
             if (appDir.filename() == "MacOS" && appDir.parent_path().filename() == "Contents") {
                 bundleRoot = appDir.parent_path().parent_path();
@@ -230,8 +300,19 @@ void AutoUpdater::downloadAndInstallUpdateAsync() {
             std::exit(0);
         }
 #elif defined(_WIN32)
-        // On Windows: extract zip and run detached batch updater that swaps files and relaunches DJVisualizer.exe
-        std::string unzipCmd = "powershell -NoProfile -Command \"Expand-Archive -Path '" + zipPath.string() + "' -DestinationPath '" + stageDir.string() + "' -Force\"";
+        // On Windows: extract zip with path escaping and run detached batch updater that swaps files and relaunches DJVisualizer.exe
+        auto escapeSingleQuotes = [](const std::string& in) {
+            std::string out;
+            for (char c : in) {
+                if (c == '\'') out += "''";
+                else out += c;
+            }
+            return out;
+        };
+
+        std::string safeZipPath = escapeSingleQuotes(zipPath.string());
+        std::string safeStageDir = escapeSingleQuotes(stageDir.string());
+        std::string unzipCmd = "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Expand-Archive -LiteralPath '" + safeZipPath + "' -DestinationPath '" + safeStageDir + "' -Force\"";
         if (std::system(unzipCmd.c_str()) == 0) {
             std::filesystem::path extractedRoot = stageDir / "DJVisualizer";
             if (!std::filesystem::exists(extractedRoot, ec)) {
