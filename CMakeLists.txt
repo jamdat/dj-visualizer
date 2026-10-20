@@ -173,6 +173,8 @@ if(APPLE)
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders $<TARGET_FILE_DIR:DJVisualizer>/src/shaders
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:DJVisualizer>/assets
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/presets $<TARGET_FILE_DIR:DJVisualizer>/presets
+        # macOS only grants mic / line-in access (and shows the permission prompt) when the bundle declares a usage string
+        COMMAND plutil -replace NSMicrophoneUsageDescription -string "DJVisualizer listens to your microphone, DJ mixer, or audio interface to drive audio-reactive visuals." $<TARGET_BUNDLE_CONTENT_DIR:DJVisualizer>/Info.plist
         COMMENT "Bundling HLSL shaders, assets, and presets into macOS DJVisualizer.app"
     )
 else()
