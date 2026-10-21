@@ -7,6 +7,7 @@
 #include <fstream>
 #include <filesystem>
 #include <algorithm>
+#include <cstdlib>
 
 #if defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
@@ -152,6 +153,20 @@ static std::filesystem::path GetAppDirectory() {
 #endif
 }
 
+static std::filesystem::path GetWindowConfigPath() {
+#if defined(__APPLE__)
+    // Writing inside the .app bundle invalidates its code signature, which makes macOS deny
+    // Screen & System Audio Recording / Microphone access, so keep runtime config in Application Support
+    if (const char* home = std::getenv("HOME")) {
+        std::filesystem::path dir = std::filesystem::path(home) / "Library/Application Support/DJVisualizer";
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        return dir / "window_config.json";
+    }
+#endif
+    return GetAppDirectory() / "window_config.json";
+}
+
 WindowManager::WindowManager() {
     s_instance = this;
 }
@@ -169,7 +184,7 @@ WindowManager::~WindowManager() {
 
 void WindowManager::loadWindowConfig() {
     try {
-        std::filesystem::path configPath = GetAppDirectory() / "window_config.json";
+        std::filesystem::path configPath = GetWindowConfigPath();
         std::error_code ec;
         if (!std::filesystem::exists(configPath, ec)) return;
 
@@ -194,7 +209,7 @@ void WindowManager::loadWindowConfig() {
 
 void WindowManager::saveWindowConfig() {
     try {
-        std::filesystem::path configPath = GetAppDirectory() / "window_config.json";
+        std::filesystem::path configPath = GetWindowConfigPath();
         Visualizer::Json::Value root(Visualizer::Json::Value::Object{});
         root["controlWidth"] = m_controlWidth;
         root["controlHeight"] = m_controlHeight;
@@ -301,7 +316,7 @@ bool WindowManager::createControlWindow(void* /*hInstance*/, int width, int heig
     glfwSetKeyCallback(m_controlWindow, WindowKeyCallback);
 
     std::error_code ec;
-    if (!std::filesystem::exists(GetAppDirectory() / "window_config.json", ec)) {
+    if (!std::filesystem::exists(GetWindowConfigPath(), ec)) {
         saveWindowConfig();
     }
 

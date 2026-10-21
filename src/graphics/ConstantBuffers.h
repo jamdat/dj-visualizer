@@ -95,9 +95,9 @@ struct alignas(16) AudioVisualizerParams {
 
     // Vector 14..17 (offset 208..271): Custom Text (16 packed ASCII characters)
     UInt4 CustomText[4] = {
-        { 'D', 'A', 'D', ' ' },
-        { 'P', 'U', 'N', 'K' },
-        { 0, 0, 0, 0 },
+        { 'D', 'A', 'D', 'T' },
+        { ' ', 'P', 'U', 'N' },
+        { 'K', 0, 0, 0 },
         { 0, 0, 0, 0 }
     };
 };

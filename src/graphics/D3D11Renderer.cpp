@@ -187,8 +187,9 @@ void D3D11Renderer::renderScene(const std::string& shaderName, const AudioVisual
     }
 
     // 4. Render 3D Polygonal Hero Mesh Pass
-    // Active when LogoWeight > 0.01 and CustomParam5 > 0.5 (Authentic 3D Polygonal Mesh)
-    if (params.LogoWeight > 0.01f && params.CustomParam5 > 0.5f && m_heroMesh.isLoaded()) {
+    // Active when LogoWeight > 0.01 and CustomParam5 > 0.5 (Authentic 3D Polygonal Mesh),
+    // or as the small corner badge over the standalone layouts
+    if (params.LogoWeight > 0.01f && (params.CustomParam5 > 0.5f || m_heroLogoBadge) && m_heroMesh.isLoaded()) {
         if (!m_meshProgram) {
             m_meshProgram = m_shaderCompiler->loadMeshShaderProgram("src/shaders/Mesh3D.vert", "src/shaders/Mesh3D.frag");
         }
@@ -228,6 +229,13 @@ void D3D11Renderer::renderScene(const std::string& shaderName, const AudioVisual
             float scaleVal = scaleMultiplier * baseScale;
             float posY = 0.22f + params.CustomParam4;
             float rotYRad = params.CustomParam6 * 3.14159265f / 180.0f;
+            if (m_heroLogoBadge) {
+                // Standalone layouts reuse CustomParam2/4/6, so the badge uses a fixed size and pose,
+                // centered on the look-at point and shifted into the corner in clip space below
+                scaleVal = 0.32f;
+                posY = 0.15f;
+                rotYRad = 0.0f;
+            }
 
             // Subtle audio reactivity: small kick pulse scale bounce
             float kickBounce = 1.0f + params.AudioKick * 0.05f;
@@ -237,6 +245,10 @@ void D3D11Renderer::renderScene(const std::string& shaderName, const AudioVisual
             Mat4 model = modelT * (modelR * modelS);
 
             Mat4 mvp = proj * (view * model);
+            if (m_heroLogoBadge) {
+                // Same lettering and lighting as the main screen, moved to the bottom-left corner
+                mvp = Mat4::translation(-0.73f, -0.85f, 0.0f) * mvp;
+            }
 
             GLint locMVP = glGetUniformLocation(m_meshProgram, "u_MVP");
             if (locMVP >= 0) glUniformMatrix4fv(locMVP, 1, GL_FALSE, mvp.m);
@@ -308,7 +320,8 @@ void D3D11Renderer::renderPostProcess(const AudioVisualizerParams& /*params*/) {
         GLuint passProg = m_shaderCompiler->createPassthroughPixelShader();
         if (passProg) {
             glUseProgram(passProg);
-            glActiveTexture(GL_TEXTURE5);
+            // Passthrough samples SceneTexture, which ShaderCompiler binds to unit 6
+            glActiveTexture(GL_TEXTURE6);
             glBindTexture(GL_TEXTURE_2D, m_postTexture);
             glBindVertexArray(m_stageVAO);
             glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -338,7 +351,8 @@ void D3D11Renderer::renderFullscreenBlit() {
     GLuint passProg = m_shaderCompiler->createPassthroughPixelShader();
     if (passProg) {
         glUseProgram(passProg);
-        glActiveTexture(GL_TEXTURE5);
+        // Passthrough samples SceneTexture, which ShaderCompiler binds to unit 6
+        glActiveTexture(GL_TEXTURE6);
         glBindTexture(GL_TEXTURE_2D, m_postTexture);
         glBindVertexArray(m_controlVAO);
         glDrawArrays(GL_TRIANGLES, 0, 3);
