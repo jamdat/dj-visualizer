@@ -195,11 +195,12 @@ void DjDashboard::applyCustomTheme(float scale) {
     colors[ImGuiCol_Separator]             = ImVec4(0.20f, 0.23f, 0.30f, 1.00f);
 }
 
-// Loop Visuals order: Main screen -> Space Voyage -> Chemistry -> Quantum -> Main screen ...
+// Loop Visuals order: Main screen -> Space Voyage -> Chemistry -> Quantum -> Daft Punk -> Main screen ...
 static StageLayout NextLoopLayout(StageLayout layout) {
     if (layout == StageLayout::Default) return StageLayout::SpaceVoyage;
     if (layout == StageLayout::SpaceVoyage) return StageLayout::Chemistry;
     if (layout == StageLayout::Chemistry) return StageLayout::Quantum;
+    if (layout == StageLayout::Quantum) return StageLayout::DaftPunk;
     return StageLayout::Default;
 }
 
@@ -207,6 +208,7 @@ static const char* StageLayoutName(StageLayout layout) {
     if (layout == StageLayout::SpaceVoyage) return "Space Voyage";
     if (layout == StageLayout::Chemistry) return "Chemistry";
     if (layout == StageLayout::Quantum) return "Quantum";
+    if (layout == StageLayout::DaftPunk) return "Daft Punk";
     return "Main Screen";
 }
 
@@ -529,8 +531,14 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
         "Electron Orbitals, Bubble Chamber (a collision every beat) and Double Slit (the mids set the wavelength)\n"
         "for 20 s each, then the Quantum Field (vacuum fluctuations and particle pairs) for 60 s.");
     ImGui::SameLine();
+    RenderLayoutButton(StageLayout::DaftPunk, "DAFT PUNK: ON", "DAFT PUNK: OFF",
+        ImVec4(0.85f, 0.86f, 0.92f, 1.0f), ImVec4(0.62f, 0.62f, 0.7f, 1.0f), 160.0f,
+        "Daft Punk layout: a chrome half-helmet and a gold half-helmet glide together into one face,\n"
+        "hold, then drift apart again on a 32-beat cycle. Drops slam them together, and the visors\n"
+        "are mirrored LED equalizers (red on the chrome side, rainbow on the gold side).");
+    ImGui::SameLine();
 
-    // Loop Visuals: steps Main -> Space Voyage -> Chemistry -> Quantum on a timer (advanced in updateStageLoop)
+    // Loop Visuals: steps Main -> Space Voyage -> Chemistry -> Quantum -> Daft Punk on a timer (advanced in updateStageLoop)
     if (m_loopVisuals) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.75f, 0.1f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.85f, 0.35f, 1.0f));
@@ -546,7 +554,7 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
     }
     ImGui::PopStyleColor(3);
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Automatically cycles the stage through the Main screen, Space Voyage, Chemistry and Quantum,\n"
+        ImGui::SetTooltip("Automatically cycles the stage through the Main screen, Space Voyage, Chemistry, Quantum and Daft Punk,\n"
                           "fading through black between them. Keeps running in fullscreen and on the stage window.");
     }
     if (m_loopVisuals) {

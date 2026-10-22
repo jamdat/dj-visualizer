@@ -124,6 +124,8 @@ static int RunVisualizerApp() {
         Log(std::string("[INFO] Chemistry: ") + (bChem ? "OK" : compiler->getLastError("Chemistry")));
         bool bQuantum = compiler->loadPixelShader("Quantum", "src/shaders/Quantum.hlsl", nullptr);
         Log(std::string("[INFO] Quantum: ") + (bQuantum ? "OK" : compiler->getLastError("Quantum")));
+        bool bDaft = compiler->loadPixelShader("DaftPunk", "src/shaders/DaftPunk.hlsl", nullptr);
+        Log(std::string("[INFO] DaftPunk: ") + (bDaft ? "OK" : compiler->getLastError("DaftPunk")));
 
         // 7. Setup Visualizer Parameters & Defaults
         Graphics::AudioVisualizerParams params;
@@ -131,6 +133,7 @@ static int RunVisualizerApp() {
         const std::string spaceSceneShaderName = "SpaceVoyage";
         const std::string chemistrySceneShaderName = "Chemistry";
         const std::string quantumSceneShaderName = "Quantum";
+        const std::string daftPunkSceneShaderName = "DaftPunk";
         Log("[INFO] ModularMixer loaded, starting main loop...");
 
         windowManager.setResizeCallback([&](int w, int h, bool isStage) {
@@ -209,19 +212,20 @@ static int RunVisualizerApp() {
             dashboard.updateStageLoop(deltaTime);
             params.MasterBrightness *= dashboard.getStageFade();
 
-            // Dashboard layout buttons (SPACE VOYAGE / CHEMISTRY / QUANTUM) swap in a standalone scene shader, with
+            // Dashboard layout buttons (SPACE VOYAGE / CHEMISTRY / QUANTUM / DAFT PUNK) swap in a standalone scene shader, with
             // the hero logo shrunk to a bottom-left badge. Falls back to ModularMixer if that shader failed to compile.
             UI::StageLayout stageLayout = dashboard.getStageLayout();
             const std::string& layoutShaderName =
                 (stageLayout == UI::StageLayout::SpaceVoyage) ? spaceSceneShaderName :
                 (stageLayout == UI::StageLayout::Chemistry) ? chemistrySceneShaderName :
-                (stageLayout == UI::StageLayout::Quantum) ? quantumSceneShaderName : currentSceneShaderName;
+                (stageLayout == UI::StageLayout::Quantum) ? quantumSceneShaderName :
+                (stageLayout == UI::StageLayout::DaftPunk) ? daftPunkSceneShaderName : currentSceneShaderName;
             bool standaloneLayout = (stageLayout != UI::StageLayout::Default) && compiler->getPixelShader(layoutShaderName) != 0;
             const std::string& sceneShaderName = standaloneLayout ? layoutShaderName : currentSceneShaderName;
             renderer.setHeroLogoBadge(standaloneLayout);
 
             // Standalone layouts reuse two ModularMixer-only params: CustomParam7 = beat phase (tempo-locked
-            // pulsar beams, bubble-chamber collisions, quantum pair creation), CustomParam6 = Space Voyage clock
+            // pulsar beams, bubble-chamber collisions, quantum pairs, helmet cycle), CustomParam6 = Space Voyage clock
             beatPhase += deltaTime * (std::max)(audioData.bpm, 1.0f) / 60.0f;
             if (beatPhase >= 64.0f) beatPhase -= 64.0f;
             if (standaloneLayout) params.CustomParam7 = beatPhase;
