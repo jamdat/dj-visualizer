@@ -195,12 +195,13 @@ void DjDashboard::applyCustomTheme(float scale) {
     colors[ImGuiCol_Separator]             = ImVec4(0.20f, 0.23f, 0.30f, 1.00f);
 }
 
-// Loop Visuals order: Main screen -> Space Voyage -> Chemistry -> Quantum -> Daft Punk -> Main screen ...
+// Loop Visuals order: Main screen -> Space Voyage -> Chemistry -> Quantum -> Daft Punk -> Dance Party -> Main screen ...
 static StageLayout NextLoopLayout(StageLayout layout) {
     if (layout == StageLayout::Default) return StageLayout::SpaceVoyage;
     if (layout == StageLayout::SpaceVoyage) return StageLayout::Chemistry;
     if (layout == StageLayout::Chemistry) return StageLayout::Quantum;
     if (layout == StageLayout::Quantum) return StageLayout::DaftPunk;
+    if (layout == StageLayout::DaftPunk) return StageLayout::DanceParty;
     return StageLayout::Default;
 }
 
@@ -209,6 +210,7 @@ static const char* StageLayoutName(StageLayout layout) {
     if (layout == StageLayout::Chemistry) return "Chemistry";
     if (layout == StageLayout::Quantum) return "Quantum";
     if (layout == StageLayout::DaftPunk) return "Daft Punk";
+    if (layout == StageLayout::DanceParty) return "Dance Party";
     return "Main Screen";
 }
 
@@ -459,7 +461,7 @@ void DjDashboard::renderHeaderBar() {
 
 void DjDashboard::renderTopStatusBar(float deltaTime) {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.08f, 0.10f, 0.14f, 0.95f));
-    ImGui::BeginChild("TopStatusBar", ImVec2(-1, 58.0f * m_uiScale), true);
+    ImGui::BeginChild("TopStatusBar", ImVec2(-1, 106.0f * m_uiScale), true); // row 1: show controls, row 2: visuals
 
     // 1. AUTO: ON / OFF Button
     bool autoOn = m_autoPilot->isEnabled();
@@ -490,7 +492,49 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
 
     ImGui::SameLine();
 
-    // 3. Stage Layout Toggles: each swaps the stage to a standalone scene shader (one at a time)
+    // 3. Auto-Pilot Mode / Space Voyage Destination & Live Audio Sync Status
+    ImGui::BeginGroup();
+    if (m_stageLayout == StageLayout::SpaceVoyage && m_spaceVoyage) {
+        if (m_spaceVoyage->isWarping()) {
+            ImGui::TextColored(ImVec4(0.75f, 0.45f, 1.0f, 1.0f), "Space Voyage: leaving %s... HYPERSPACE JUMP", m_spaceVoyage->getDestinationName());
+        } else {
+            ImGui::TextColored(ImVec4(0.75f, 0.45f, 1.0f, 1.0f), "Space Voyage: %s | next jump in %.0fs (DROP = jump now)",
+                m_spaceVoyage->getDestinationName(), m_spaceVoyage->getSecondsToNextJump());
+        }
+    } else if (autoOn) {
+        ImGui::TextColored(ImVec4(0.2f, 0.85f, 1.0f, 1.0f), "🤖 Auto-Pilot Active (Dynamic Audio-Reactive Director)");
+    } else {
+        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "🎛️ Manual Live Mode (Direct Slider & Toggle Control)");
+    }
+
+    // Audio status & BPM
+    float bpm = m_beatDetector ? m_beatDetector->getBpm() : 128.0f;
+    float pulse = m_beatDetector ? m_beatDetector->getBeatPulse() : 0.0f;
+    if (m_loopVisuals) {
+        ImGui::TextDisabled("Loop: %s next in %.0fs | Live Audio Sync: %.0f BPM | Beat Pulse: %.2f",
+            StageLayoutName(NextLoopLayout(m_stageLayout)), (std::max)(0.0f, m_loopIntervalSec - m_loopTimer), bpm, pulse);
+    } else {
+        ImGui::TextDisabled("Live Audio Sync: %.0f BPM | Beat Pulse: %.2f", bpm, pulse);
+    }
+    ImGui::EndGroup();
+
+    // 4. Audio silence warning if no sound detected
+    const auto& bands = m_audioAnalyzer->getBands();
+    float totalAudio = bands.subBass + bands.bass + bands.lowMid + bands.highMid + bands.treble;
+    if (totalAudio < 0.005f) {
+        m_silentWarningTimer += deltaTime;
+    } else {
+        m_silentWarningTimer = 0.0f;
+    }
+
+    if (m_silentWarningTimer > 2.0f) {
+        ImGui::SameLine(ImGui::GetWindowWidth() - 320.0f * m_uiScale);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.0f, 1.0f));
+        ImGui::Text("⚠️ NO AUDIO (Loopback Silent)");
+        ImGui::PopStyleColor();
+    }
+
+    // 5. Second row: Stage Layout Toggles, each swaps the stage to a standalone scene shader (one at a time)
     auto RenderLayoutButton = [&](StageLayout layout, const char* onLabel, const char* offLabel,
                                   const ImVec4& onColor, const ImVec4& offHover, float width, const char* tooltip) {
         bool active = (m_stageLayout == layout);
@@ -537,8 +581,14 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
         "hold, then drift apart again on a 32-beat cycle. Drops slam them together, and the visors\n"
         "are mirrored LED equalizers (red on the chrome side, rainbow on the gold side).");
     ImGui::SameLine();
+    RenderLayoutButton(StageLayout::DanceParty, "DANCE PARTY: ON", "DANCE PARTY: OFF",
+        ImVec4(1.0f, 0.3f, 0.6f, 1.0f), ImVec4(0.75f, 0.2f, 0.45f, 1.0f), 175.0f,
+        "Dance Party layout: neon dancers wearing faces from assets/private/faces_atlas.tga dance to the beat\n"
+        "on a rainy cyberpunk stage, and swap spots every 32 beats so everyone gets a turn up front.\n"
+        "Without the face file, neon smiley faces are used.");
+    ImGui::SameLine();
 
-    // Loop Visuals: steps Main -> Space Voyage -> Chemistry -> Quantum -> Daft Punk on a timer (advanced in updateStageLoop)
+    // Loop Visuals: steps Main -> Space Voyage -> Chemistry -> Quantum -> Daft Punk -> Dance Party on a timer (advanced in updateStageLoop)
     if (m_loopVisuals) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.75f, 0.1f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.85f, 0.35f, 1.0f));
@@ -554,7 +604,7 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
     }
     ImGui::PopStyleColor(3);
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Automatically cycles the stage through the Main screen, Space Voyage, Chemistry, Quantum and Daft Punk,\n"
+        ImGui::SetTooltip("Automatically cycles the stage through the Main screen, Space Voyage, Chemistry, Quantum, Daft Punk and Dance Party,\n"
                           "fading through black between them. Keeps running in fullscreen and on the stage window.");
     }
     if (m_loopVisuals) {
@@ -564,50 +614,6 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("Time on each visual before looping to the next");
         }
-    }
-
-    ImGui::SameLine();
-
-    // 4. Auto-Pilot Mode / Space Voyage Destination & Live Audio Sync Status
-    ImGui::BeginGroup();
-    if (m_stageLayout == StageLayout::SpaceVoyage && m_spaceVoyage) {
-        if (m_spaceVoyage->isWarping()) {
-            ImGui::TextColored(ImVec4(0.75f, 0.45f, 1.0f, 1.0f), "Space Voyage: leaving %s... HYPERSPACE JUMP", m_spaceVoyage->getDestinationName());
-        } else {
-            ImGui::TextColored(ImVec4(0.75f, 0.45f, 1.0f, 1.0f), "Space Voyage: %s | next jump in %.0fs (DROP = jump now)",
-                m_spaceVoyage->getDestinationName(), m_spaceVoyage->getSecondsToNextJump());
-        }
-    } else if (autoOn) {
-        ImGui::TextColored(ImVec4(0.2f, 0.85f, 1.0f, 1.0f), "🤖 Auto-Pilot Active (Dynamic Audio-Reactive Director)");
-    } else {
-        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "🎛️ Manual Live Mode (Direct Slider & Toggle Control)");
-    }
-
-    // Audio status & BPM
-    float bpm = m_beatDetector ? m_beatDetector->getBpm() : 128.0f;
-    float pulse = m_beatDetector ? m_beatDetector->getBeatPulse() : 0.0f;
-    if (m_loopVisuals) {
-        ImGui::TextDisabled("Loop: %s next in %.0fs | Live Audio Sync: %.0f BPM | Beat Pulse: %.2f",
-            StageLayoutName(NextLoopLayout(m_stageLayout)), (std::max)(0.0f, m_loopIntervalSec - m_loopTimer), bpm, pulse);
-    } else {
-        ImGui::TextDisabled("Live Audio Sync: %.0f BPM | Beat Pulse: %.2f", bpm, pulse);
-    }
-    ImGui::EndGroup();
-
-    // 5. Audio silence warning if no sound detected
-    const auto& bands = m_audioAnalyzer->getBands();
-    float totalAudio = bands.subBass + bands.bass + bands.lowMid + bands.highMid + bands.treble;
-    if (totalAudio < 0.005f) {
-        m_silentWarningTimer += deltaTime;
-    } else {
-        m_silentWarningTimer = 0.0f;
-    }
-
-    if (m_silentWarningTimer > 2.0f) {
-        ImGui::SameLine(ImGui::GetWindowWidth() - 320.0f * m_uiScale);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.0f, 1.0f));
-        ImGui::Text("⚠️ NO AUDIO (Loopback Silent)");
-        ImGui::PopStyleColor();
     }
 
     ImGui::EndChild();

@@ -60,6 +60,7 @@ PFNGLENABLEVERTEXATTRIBARRAYPROC  glEnableVertexAttribArray = nullptr;
 PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray = nullptr;
 PFNGLVERTEXATTRIBPOINTERPROC      glVertexAttribPointer = nullptr;
 PFNGLUNIFORMMATRIX4FVPROC         glUniformMatrix4fv = nullptr;
+PFNGLGENERATEMIPMAPPROC           glGenerateMipmap = nullptr;
 #endif
 
 namespace Visualizer::Graphics {
@@ -112,6 +113,7 @@ bool InitGL33Loader() {
     glDisableVertexAttribArray = reinterpret_cast<PFNGLDISABLEVERTEXATTRIBARRAYPROC>(load("glDisableVertexAttribArray"));
     glVertexAttribPointer      = reinterpret_cast<PFNGLVERTEXATTRIBPOINTERPROC>(load("glVertexAttribPointer"));
     glUniformMatrix4fv         = reinterpret_cast<PFNGLUNIFORMMATRIX4FVPROC>(load("glUniformMatrix4fv"));
+    glGenerateMipmap           = reinterpret_cast<PFNGLGENERATEMIPMAPPROC>(load("glGenerateMipmap"));
 
     return glCreateProgram != nullptr && glGenFramebuffers != nullptr && glGenVertexArrays != nullptr;
 }

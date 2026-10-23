@@ -114,6 +114,7 @@
     typedef void (APIENTRYP PFNGLDISABLEVERTEXATTRIBARRAYPROC)(GLuint index);
     typedef void (APIENTRYP PFNGLVERTEXATTRIBPOINTERPROC)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
     typedef void (APIENTRYP PFNGLUNIFORMMATRIX4FVPROC)(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+    typedef void (APIENTRYP PFNGLGENERATEMIPMAPPROC)(GLenum target);
 
     extern PFNGLACTIVETEXTUREPROC        glActiveTexture;
     extern PFNGLCREATESHADERPROC         glCreateShader;
@@ -156,6 +157,7 @@
     extern PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray;
     extern PFNGLVERTEXATTRIBPOINTERPROC      glVertexAttribPointer;
     extern PFNGLUNIFORMMATRIX4FVPROC         glUniformMatrix4fv;
+    extern PFNGLGENERATEMIPMAPPROC           glGenerateMipmap;
 
     namespace Visualizer::Graphics {
         bool InitGL33Loader();

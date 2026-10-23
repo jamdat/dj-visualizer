@@ -17,7 +17,7 @@ struct GLFWwindow;
 namespace Visualizer::UI {
 
 // Which scene shader the stage renders: ModularMixer (Default) or a standalone layout
-enum class StageLayout { Default, SpaceVoyage, Chemistry, Quantum, DaftPunk };
+enum class StageLayout { Default, SpaceVoyage, Chemistry, Quantum, DaftPunk, DanceParty };
 
 class DjDashboard {
 public:
