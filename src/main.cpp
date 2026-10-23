@@ -11,6 +11,7 @@
 #endif
 
 #include <GLFW/glfw3.h>
+#include <algorithm>
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -25,6 +26,7 @@
 #include "control/PresetManager.h"
 #include "control/AutoPilot.h"
 #include "control/MidiController.h"
+#include "control/SpaceVoyage.h"
 #include "ui/DjDashboard.h"
 #include "core/Logger.h"
 
@@ -85,6 +87,7 @@ static int RunVisualizerApp() {
 
         Control::AutoPilot autoPilot;
         Control::MidiController midiController;
+        Control::SpaceVoyage spaceVoyage;
 
         // 5. Initialize ImGui DJ Dashboard UI
         Log("[INFO] Step 5: Initializing ImGui Dashboard...");
@@ -96,7 +99,8 @@ static int RunVisualizerApp() {
             &beatDetector,
             &presetManager,
             &autoPilot,
-            &midiController
+            &midiController,
+            &spaceVoyage
         );
 
         if (!dashboard.initialize(windowManager.getControlWindow(), renderer.getDevice(), renderer.getContext())) {
@@ -114,10 +118,25 @@ static int RunVisualizerApp() {
         auto* compiler = renderer.getShaderCompiler();
         bool bMaster = compiler->loadPixelShader("ModularMixer", "src/shaders/ModularMixer.hlsl", nullptr);
         Log(std::string("[INFO] ModularMixer: ") + (bMaster ? "OK" : compiler->getLastError("ModularMixer")));
+        bool bSpace = compiler->loadPixelShader("SpaceVoyage", "src/shaders/SpaceVoyage.hlsl", nullptr);
+        Log(std::string("[INFO] SpaceVoyage: ") + (bSpace ? "OK" : compiler->getLastError("SpaceVoyage")));
+        bool bChem = compiler->loadPixelShader("Chemistry", "src/shaders/Chemistry.hlsl", nullptr);
+        Log(std::string("[INFO] Chemistry: ") + (bChem ? "OK" : compiler->getLastError("Chemistry")));
+        bool bQuantum = compiler->loadPixelShader("Quantum", "src/shaders/Quantum.hlsl", nullptr);
+        Log(std::string("[INFO] Quantum: ") + (bQuantum ? "OK" : compiler->getLastError("Quantum")));
+        bool bDaft = compiler->loadPixelShader("DaftPunk", "src/shaders/DaftPunk.hlsl", nullptr);
+        Log(std::string("[INFO] DaftPunk: ") + (bDaft ? "OK" : compiler->getLastError("DaftPunk")));
+        bool bDance = compiler->loadPixelShader("DanceParty", "src/shaders/DanceParty.hlsl", nullptr);
+        Log(std::string("[INFO] DanceParty: ") + (bDance ? "OK" : compiler->getLastError("DanceParty")));
 
         // 7. Setup Visualizer Parameters & Defaults
         Graphics::AudioVisualizerParams params;
         std::string currentSceneShaderName = "ModularMixer";
+        const std::string spaceSceneShaderName = "SpaceVoyage";
+        const std::string chemistrySceneShaderName = "Chemistry";
+        const std::string quantumSceneShaderName = "Quantum";
+        const std::string daftPunkSceneShaderName = "DaftPunk";
+        const std::string dancePartySceneShaderName = "DanceParty";
         Log("[INFO] ModularMixer loaded, starting main loop...");
 
         windowManager.setResizeCallback([&](int w, int h, bool isStage) {
@@ -127,7 +146,7 @@ static int RunVisualizerApp() {
 
         windowManager.setKeyCallback([&](int key, int action) {
             if (key == GLFW_KEY_SPACE && action == GLFW_PRESS && windowManager.isSingleScreenFullscreen()) {
-                autoPilot.triggerDropTransition();
+                dashboard.triggerSpacebarDrop();
             }
         });
 
@@ -140,6 +159,7 @@ static int RunVisualizerApp() {
         std::vector<float> audioSamples;
         float accumulatedTime = 0.0f;
         float hotReloadTimer = 0.0f;
+        float beatPhase = 0.0f; // beats, integrated from the detected BPM, wraps at 64
         int frameCount = 0;
 
         // 9. Main Visualizer Loop
@@ -190,6 +210,36 @@ static int RunVisualizerApp() {
             // E. Resolve GPU Parameters Non-Destructively
             autoPilot.resolveGpuParams(audioData, params);
 
+            // Loop Visuals: the dashboard steps through the layouts on a timer (even while hidden in fullscreen)
+            // and dips the stage to black around each switch
+            dashboard.updateStageLoop(deltaTime);
+            params.MasterBrightness *= dashboard.getStageFade();
+
+            // Dashboard layout buttons (SPACE VOYAGE / CHEMISTRY / QUANTUM / DAFT PUNK / DANCE PARTY) swap in a standalone scene shader, with
+            // the hero logo shrunk to a bottom-left badge. Falls back to ModularMixer if that shader failed to compile.
+            UI::StageLayout stageLayout = dashboard.getStageLayout();
+            const std::string& layoutShaderName =
+                (stageLayout == UI::StageLayout::SpaceVoyage) ? spaceSceneShaderName :
+                (stageLayout == UI::StageLayout::Chemistry) ? chemistrySceneShaderName :
+                (stageLayout == UI::StageLayout::Quantum) ? quantumSceneShaderName :
+                (stageLayout == UI::StageLayout::DaftPunk) ? daftPunkSceneShaderName :
+                (stageLayout == UI::StageLayout::DanceParty) ? dancePartySceneShaderName : currentSceneShaderName;
+            bool standaloneLayout = (stageLayout != UI::StageLayout::Default) && compiler->getPixelShader(layoutShaderName) != 0;
+            const std::string& sceneShaderName = standaloneLayout ? layoutShaderName : currentSceneShaderName;
+            renderer.setHeroLogoBadge(standaloneLayout);
+
+            // Standalone layouts reuse two ModularMixer-only params: CustomParam7 = beat phase (tempo-locked
+            // pulsar beams, bubble-chamber collisions, quantum pairs, helmet cycle, dance moves), CustomParam6 = Space Voyage clock
+            beatPhase += deltaTime * (std::max)(audioData.bpm, 1.0f) / 60.0f;
+            if (beatPhase >= 64.0f) beatPhase -= 64.0f;
+            if (standaloneLayout) params.CustomParam7 = beatPhase;
+            if (standaloneLayout && stageLayout == UI::StageLayout::SpaceVoyage) {
+                spaceVoyage.update(deltaTime);
+                params.CustomParam6 = spaceVoyage.getClock();
+            } else {
+                params.CustomParam6 = 0.0f;
+            }
+
             // E. Live Shader & Texture Hot-Reloading Check (Every 100ms)
             hotReloadTimer += deltaTime;
             if (hotReloadTimer >= 0.1f) {
@@ -206,7 +256,7 @@ static int RunVisualizerApp() {
             renderer.beginFrame();
 
             // 1. Render Active Scene Shader to 1080p Target
-            renderer.renderScene(currentSceneShaderName, params);
+            renderer.renderScene(sceneShaderName, params);
 
             // 2. Render Post-Process & Stage Output
             renderer.renderPostProcess(params);

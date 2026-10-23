@@ -36,6 +36,9 @@ public:
     void renderFullscreenBlit();
     void endFrame(bool vsync = true);
 
+    // Draw the 3D hero logo as a small bottom-left badge (standalone layouts) instead of the centerpiece
+    void setHeroLogoBadge(bool badge) { m_heroLogoBadge = badge; }
+
     // Subsystems
     ShaderCompiler* getShaderCompiler() { return m_shaderCompiler.get(); }
     TextureManager* getTextureManager() { return m_textureManager.get(); }
@@ -72,6 +75,7 @@ private:
     // 3D Polygonal Hero Mesh & Shader Program
     Mesh3D m_heroMesh;
     GLuint m_meshProgram = 0;
+    bool m_heroLogoBadge = false;
 
     // Subsystems
     std::unique_ptr<ShaderCompiler> m_shaderCompiler;

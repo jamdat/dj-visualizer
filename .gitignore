@@ -40,3 +40,7 @@ third_party/imgui/examples/
 imgui.ini
 __pycache__/
 *.pyc
+
+# Private family photos and the face crops made from them (never commit)
+pics/
+assets/private/

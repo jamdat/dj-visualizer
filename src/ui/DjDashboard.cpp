@@ -7,6 +7,7 @@
 #include <iostream>
 #include <filesystem>
 #include <cstdint>
+#include <cstdlib>
 
 namespace Visualizer::UI {
 
@@ -37,7 +38,8 @@ DjDashboard::DjDashboard(
     Audio::BeatDetector* beatDetector,
     Control::PresetManager* presetManager,
     Control::AutoPilot* autoPilot,
-    Control::MidiController* midiController
+    Control::MidiController* midiController,
+    Control::SpaceVoyage* spaceVoyage
 ) : m_windowManager(windowManager),
     m_renderer(renderer),
     m_audioCapture(audioCapture),
@@ -45,7 +47,8 @@ DjDashboard::DjDashboard(
     m_beatDetector(beatDetector),
     m_presetManager(presetManager),
     m_autoPilot(autoPilot),
-    m_midiController(midiController) {
+    m_midiController(midiController),
+    m_spaceVoyage(spaceVoyage) {
 }
 
 DjDashboard::~DjDashboard() {
@@ -59,6 +62,17 @@ bool DjDashboard::initialize(GLFWwindow* window, void* /*device*/, void* /*conte
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+#if defined(__APPLE__)
+        // GLFW makes Contents/Resources the working directory, and rewriting imgui.ini there breaks the
+        // bundle's code signature (and with it the macOS audio permissions), so keep it in Application Support
+        if (const char* home = std::getenv("HOME")) {
+            std::filesystem::path iniDir = std::filesystem::path(home) / "Library/Application Support/DJVisualizer";
+            std::error_code iniEc;
+            std::filesystem::create_directories(iniDir, iniEc);
+            static std::string s_iniPath = (iniDir / "imgui.ini").string();
+            io.IniFilename = s_iniPath.c_str();
+        }
+#endif
 
         // Load crisp system font on Windows or macOS
         ImFont* font = nullptr;
@@ -181,7 +195,57 @@ void DjDashboard::applyCustomTheme(float scale) {
     colors[ImGuiCol_Separator]             = ImVec4(0.20f, 0.23f, 0.30f, 1.00f);
 }
 
+// Loop Visuals order: Main screen -> Space Voyage -> Chemistry -> Quantum -> Daft Punk -> Dance Party -> Main screen ...
+static StageLayout NextLoopLayout(StageLayout layout) {
+    if (layout == StageLayout::Default) return StageLayout::SpaceVoyage;
+    if (layout == StageLayout::SpaceVoyage) return StageLayout::Chemistry;
+    if (layout == StageLayout::Chemistry) return StageLayout::Quantum;
+    if (layout == StageLayout::Quantum) return StageLayout::DaftPunk;
+    if (layout == StageLayout::DaftPunk) return StageLayout::DanceParty;
+    return StageLayout::Default;
+}
+
+static const char* StageLayoutName(StageLayout layout) {
+    if (layout == StageLayout::SpaceVoyage) return "Space Voyage";
+    if (layout == StageLayout::Chemistry) return "Chemistry";
+    if (layout == StageLayout::Quantum) return "Quantum";
+    if (layout == StageLayout::DaftPunk) return "Daft Punk";
+    if (layout == StageLayout::DanceParty) return "Dance Party";
+    return "Main Screen";
+}
+
+void DjDashboard::setStageLayout(StageLayout layout) {
+    m_stageLayout = layout;
+    if (m_stageLayout == StageLayout::SpaceVoyage && m_spaceVoyage) {
+        m_spaceVoyage->restart();
+    }
+}
+
+void DjDashboard::updateStageLoop(float deltaTime) {
+    m_loopFadeIn = (std::min)(m_loopFadeIn + deltaTime, kLoopFadeSeconds);
+    if (!m_loopVisuals) return;
+
+    m_loopTimer += deltaTime;
+    if (m_loopTimer >= m_loopIntervalSec) {
+        m_loopTimer = 0.0f;
+        m_loopFadeIn = 0.0f;
+        setStageLayout(NextLoopLayout(m_stageLayout));
+    }
+}
+
+float DjDashboard::getStageFade() const {
+    // Fade out over the last kLoopFadeSeconds before a loop switch, then back in after it
+    float fadeIn = m_loopFadeIn / kLoopFadeSeconds;
+    float fadeOut = m_loopVisuals ? std::clamp((m_loopIntervalSec - m_loopTimer) / kLoopFadeSeconds, 0.0f, 1.0f) : 1.0f;
+    return (std::min)(fadeIn, fadeOut);
+}
+
 void DjDashboard::triggerSpacebarDrop() {
+    // In the Space Voyage layout a drop jumps to the next destination instead
+    if (m_stageLayout == StageLayout::SpaceVoyage && m_spaceVoyage) {
+        m_spaceVoyage->warpToNext();
+        return;
+    }
     if (m_autoPilot) {
         m_autoPilot->triggerDropTransition();
     }
@@ -397,7 +461,7 @@ void DjDashboard::renderHeaderBar() {
 
 void DjDashboard::renderTopStatusBar(float deltaTime) {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.08f, 0.10f, 0.14f, 0.95f));
-    ImGui::BeginChild("TopStatusBar", ImVec2(-1, 58.0f * m_uiScale), true);
+    ImGui::BeginChild("TopStatusBar", ImVec2(-1, 106.0f * m_uiScale), true); // row 1: show controls, row 2: visuals
 
     // 1. AUTO: ON / OFF Button
     bool autoOn = m_autoPilot->isEnabled();
@@ -428,9 +492,16 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
 
     ImGui::SameLine();
 
-    // 3. Auto-Pilot Mode & Live Audio Sync Status
+    // 3. Auto-Pilot Mode / Space Voyage Destination & Live Audio Sync Status
     ImGui::BeginGroup();
-    if (autoOn) {
+    if (m_stageLayout == StageLayout::SpaceVoyage && m_spaceVoyage) {
+        if (m_spaceVoyage->isWarping()) {
+            ImGui::TextColored(ImVec4(0.75f, 0.45f, 1.0f, 1.0f), "Space Voyage: leaving %s... HYPERSPACE JUMP", m_spaceVoyage->getDestinationName());
+        } else {
+            ImGui::TextColored(ImVec4(0.75f, 0.45f, 1.0f, 1.0f), "Space Voyage: %s | next jump in %.0fs (DROP = jump now)",
+                m_spaceVoyage->getDestinationName(), m_spaceVoyage->getSecondsToNextJump());
+        }
+    } else if (autoOn) {
         ImGui::TextColored(ImVec4(0.2f, 0.85f, 1.0f, 1.0f), "🤖 Auto-Pilot Active (Dynamic Audio-Reactive Director)");
     } else {
         ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "🎛️ Manual Live Mode (Direct Slider & Toggle Control)");
@@ -439,7 +510,12 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
     // Audio status & BPM
     float bpm = m_beatDetector ? m_beatDetector->getBpm() : 128.0f;
     float pulse = m_beatDetector ? m_beatDetector->getBeatPulse() : 0.0f;
-    ImGui::TextDisabled("Live Audio Sync: %.0f BPM | Beat Pulse: %.2f", bpm, pulse);
+    if (m_loopVisuals) {
+        ImGui::TextDisabled("Loop: %s next in %.0fs | Live Audio Sync: %.0f BPM | Beat Pulse: %.2f",
+            StageLayoutName(NextLoopLayout(m_stageLayout)), (std::max)(0.0f, m_loopIntervalSec - m_loopTimer), bpm, pulse);
+    } else {
+        ImGui::TextDisabled("Live Audio Sync: %.0f BPM | Beat Pulse: %.2f", bpm, pulse);
+    }
     ImGui::EndGroup();
 
     // 4. Audio silence warning if no sound detected
@@ -456,6 +532,88 @@ void DjDashboard::renderTopStatusBar(float deltaTime) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.0f, 1.0f));
         ImGui::Text("⚠️ NO AUDIO (Loopback Silent)");
         ImGui::PopStyleColor();
+    }
+
+    // 5. Second row: Stage Layout Toggles, each swaps the stage to a standalone scene shader (one at a time)
+    auto RenderLayoutButton = [&](StageLayout layout, const char* onLabel, const char* offLabel,
+                                  const ImVec4& onColor, const ImVec4& offHover, float width, const char* tooltip) {
+        bool active = (m_stageLayout == layout);
+        if (active) {
+            ImGui::PushStyleColor(ImGuiCol_Button, onColor);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(onColor.x * 0.7f + 0.3f, onColor.y * 0.7f + 0.3f, onColor.z * 0.7f + 0.3f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+        } else {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.4f, 0.45f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, offHover);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+        }
+        if (ImGui::Button(active ? onLabel : offLabel, ImVec2(width * m_uiScale, 40.0f * m_uiScale))) {
+            setStageLayout(active ? StageLayout::Default : layout);
+            m_loopTimer = 0.0f; // a manual pick restarts the loop countdown from this visual
+        }
+        ImGui::PopStyleColor(3);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", tooltip);
+        }
+    };
+
+    RenderLayoutButton(StageLayout::SpaceVoyage, "SPACE VOYAGE: ON", "SPACE VOYAGE: OFF",
+        ImVec4(0.75f, 0.45f, 1.0f, 1.0f), ImVec4(0.55f, 0.3f, 0.85f, 1.0f), 185.0f,
+        "Space Voyage layout: a tour of seven destinations with a hyperspace jump every 15 s:\n"
+        "Ringed Giant, Asteroid Belt, Nebula Drift, Pulsar, Aurora World, Spiral Galaxy, Event Horizon.\n"
+        "DROP [SPACE] jumps to the next destination. Click again for the default visuals.");
+    ImGui::SameLine();
+    RenderLayoutButton(StageLayout::Chemistry, "CHEMISTRY: ON", "CHEMISTRY: OFF",
+        ImVec4(0.3f, 0.95f, 0.45f, 1.0f), ImVec4(0.2f, 0.7f, 0.35f, 1.0f), 165.0f,
+        "Chemistry layout: a molecular world dancing to the music. The centerpiece changes every 24 s:\n"
+        "DNA Double Helix, Benzene Ring, Salt Crystal, Carbon Atom, surrounded by a swarm of\n"
+        "water, CO2, methane and nitrogen molecules that pulse to the spectrum and burst on drops.");
+    ImGui::SameLine();
+    RenderLayoutButton(StageLayout::Quantum, "QUANTUM: ON", "QUANTUM: OFF",
+        ImVec4(1.0f, 0.4f, 0.8f, 1.0f), ImVec4(0.75f, 0.25f, 0.6f, 1.0f), 150.0f,
+        "Quantum layout: four quantum phenomena crossfading through a wavefunction collapse (2-minute cycle):\n"
+        "Electron Orbitals, Bubble Chamber (a collision every beat) and Double Slit (the mids set the wavelength)\n"
+        "for 20 s each, then the Quantum Field (vacuum fluctuations and particle pairs) for 60 s.");
+    ImGui::SameLine();
+    RenderLayoutButton(StageLayout::DaftPunk, "DAFT PUNK: ON", "DAFT PUNK: OFF",
+        ImVec4(0.85f, 0.86f, 0.92f, 1.0f), ImVec4(0.62f, 0.62f, 0.7f, 1.0f), 160.0f,
+        "Daft Punk layout: a chrome half-helmet and a gold half-helmet glide together into one face,\n"
+        "hold, then drift apart again on a 32-beat cycle. Drops slam them together, and the visors\n"
+        "are mirrored LED equalizers (red on the chrome side, rainbow on the gold side).");
+    ImGui::SameLine();
+    RenderLayoutButton(StageLayout::DanceParty, "DANCE PARTY: ON", "DANCE PARTY: OFF",
+        ImVec4(1.0f, 0.3f, 0.6f, 1.0f), ImVec4(0.75f, 0.2f, 0.45f, 1.0f), 175.0f,
+        "Dance Party layout: neon dancers wearing faces from assets/private/faces_atlas.tga dance to the beat\n"
+        "on a rainy cyberpunk stage, and swap spots every 32 beats so everyone gets a turn up front.\n"
+        "Without the face file, neon smiley faces are used.");
+    ImGui::SameLine();
+
+    // Loop Visuals: steps Main -> Space Voyage -> Chemistry -> Quantum -> Daft Punk -> Dance Party on a timer (advanced in updateStageLoop)
+    if (m_loopVisuals) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.75f, 0.1f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.85f, 0.35f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+    } else {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.4f, 0.45f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f, 0.6f, 0.1f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+    }
+    if (ImGui::Button(m_loopVisuals ? "LOOP VISUALS: ON" : "LOOP VISUALS: OFF", ImVec2(175.0f * m_uiScale, 40.0f * m_uiScale))) {
+        m_loopVisuals = !m_loopVisuals;
+        m_loopTimer = 0.0f;
+    }
+    ImGui::PopStyleColor(3);
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Automatically cycles the stage through the Main screen, Space Voyage, Chemistry, Quantum, Daft Punk and Dance Party,\n"
+                          "fading through black between them. Keeps running in fullscreen and on the stage window.");
+    }
+    if (m_loopVisuals) {
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(110.0f * m_uiScale);
+        ImGui::SliderFloat("##LoopSeconds", &m_loopIntervalSec, 15.0f, 300.0f, "%.0fs each");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Time on each visual before looping to the next");
+        }
     }
 
     ImGui::EndChild();
@@ -620,8 +778,8 @@ void DjDashboard::renderConsolidatedDetailsPanel() {
                 ImGui::InputText("##CustomText", user.customText, 17);
 
                 ImGui::SameLine();
-                if (ImGui::Button("Reset 'DAD PUNK'")) {
-                    std::snprintf(user.customText, sizeof(user.customText), "%s", "DAD PUNK");
+                if (ImGui::Button("Reset 'DADT PUNK'")) {
+                    std::snprintf(user.customText, sizeof(user.customText), "%s", "DADT PUNK");
                 }
 
                 const char* fontFaceNames[] = {
@@ -784,10 +942,62 @@ void DjDashboard::renderAudioSpectrumPanel() {
     }
 }
 
+void DjDashboard::openStageWindowOn(int monitorIndex) {
+    // Reset the renderer's stage state first: Esc closes the stage window directly, without telling the renderer
+    m_renderer->releaseStageSwapChain();
+    m_windowManager->closeStageWindow();
+    if (m_windowManager->createStageWindow(nullptr, monitorIndex)) {
+        m_renderer->setupStageSwapChain(m_windowManager->getStageWindow(), 1920, 1080);
+    }
+}
+
 void DjDashboard::renderProjectorOutputPanel() {
     if (ImGui::CollapsingHeader("STAGE PROJECTOR & PRESET MANAGER", ImGuiTreeNodeFlags_DefaultOpen)) {
-        // Fullscreen Blit / Stage Toggle
+        // Stage Display Picker: displays are re-listed every second so a TV or projector plugged in
+        // mid-set shows up; picking one moves an open stage window there right away
+        m_monitorRefreshTimer -= ImGui::GetIO().DeltaTime;
+        if (m_monitorRefreshTimer <= 0.0f || m_monitors.empty()) {
+            m_monitors = m_windowManager->enumerateMonitors();
+            m_monitorRefreshTimer = 1.0f;
+        }
+        int monitorCount = static_cast<int>(m_monitors.size());
+        int targetMonitor = std::clamp(m_selectedMonitor, 0, (std::max)(monitorCount - 1, 0));
+        auto MonitorLabel = [&](int i) {
+            const auto& mon = m_monitors[i];
+            char buf[192];
+            std::snprintf(buf, sizeof(buf), "%d: %s  %dx%d%s", i + 1, WStringToString(mon.name).c_str(),
+                mon.width, mon.height, mon.isPrimary ? "  (main)" : "");
+            return std::string(buf);
+        };
+
         bool stageOpen = m_windowManager->isStageWindowOpen();
+        if (monitorCount > 0) {
+            ImGui::Text("Stage Display:");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(-1);
+            if (ImGui::BeginCombo("##StageDisplay", MonitorLabel(targetMonitor).c_str())) {
+                for (int i = 0; i < monitorCount; ++i) {
+                    ImGui::PushID(i);
+                    bool isSel = (i == targetMonitor);
+                    if (ImGui::Selectable(MonitorLabel(i).c_str(), isSel)) {
+                        m_selectedMonitor = i;
+                        targetMonitor = i;
+                        if (stageOpen) {
+                            openStageWindowOn(i);
+                        }
+                    }
+                    if (isSel) ImGui::SetItemDefaultFocus();
+                    ImGui::PopID();
+                }
+                ImGui::EndCombo();
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Display for the stage output. Changing it while the stage window is open moves it immediately.");
+            }
+        }
+
+        // Fullscreen Blit / Stage Toggle
+        stageOpen = m_windowManager->isStageWindowOpen();
         if (stageOpen) {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
             if (ImGui::Button("Close Stage Window", ImVec2(-1, 35.0f * m_uiScale))) {
@@ -797,12 +1007,21 @@ void DjDashboard::renderProjectorOutputPanel() {
             ImGui::PopStyleColor();
         } else {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.3f, 1.0f));
-            if (ImGui::Button("Open Stage Window on Secondary Display (TV)", ImVec2(-1, 35.0f * m_uiScale))) {
-                if (m_windowManager->createStageWindow(nullptr, m_selectedMonitor)) {
-                    m_renderer->setupStageSwapChain(m_windowManager->getStageWindow(), 1920, 1080);
-                }
+            if (ImGui::Button("Open Stage Window on Selected Display", ImVec2(-1, 35.0f * m_uiScale))) {
+                openStageWindowOn(targetMonitor);
             }
             ImGui::PopStyleColor();
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Fills the selected display with the visuals only. Press Esc on it to close.");
+            }
+        }
+
+        // Single-screen fullscreen (same as F11, which macOS usually reserves for Show Desktop)
+        if (ImGui::Button("Fullscreen on Main Display (Esc to exit)", ImVec2(-1, 30.0f * m_uiScale))) {
+            m_windowManager->toggleSingleScreenFullscreen();
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Hides the dashboard and shows the visuals full screen on the main display. Esc or F11 exits.");
         }
 
         // Preset Save & Load

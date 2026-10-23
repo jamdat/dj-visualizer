@@ -7,6 +7,7 @@
 #include <fstream>
 #include <filesystem>
 #include <algorithm>
+#include <cstdlib>
 
 #if defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
@@ -59,6 +60,7 @@ PFNGLENABLEVERTEXATTRIBARRAYPROC  glEnableVertexAttribArray = nullptr;
 PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray = nullptr;
 PFNGLVERTEXATTRIBPOINTERPROC      glVertexAttribPointer = nullptr;
 PFNGLUNIFORMMATRIX4FVPROC         glUniformMatrix4fv = nullptr;
+PFNGLGENERATEMIPMAPPROC           glGenerateMipmap = nullptr;
 #endif
 
 namespace Visualizer::Graphics {
@@ -111,6 +113,7 @@ bool InitGL33Loader() {
     glDisableVertexAttribArray = reinterpret_cast<PFNGLDISABLEVERTEXATTRIBARRAYPROC>(load("glDisableVertexAttribArray"));
     glVertexAttribPointer      = reinterpret_cast<PFNGLVERTEXATTRIBPOINTERPROC>(load("glVertexAttribPointer"));
     glUniformMatrix4fv         = reinterpret_cast<PFNGLUNIFORMMATRIX4FVPROC>(load("glUniformMatrix4fv"));
+    glGenerateMipmap           = reinterpret_cast<PFNGLGENERATEMIPMAPPROC>(load("glGenerateMipmap"));
 
     return glCreateProgram != nullptr && glGenFramebuffers != nullptr && glGenVertexArrays != nullptr;
 }
@@ -152,6 +155,20 @@ static std::filesystem::path GetAppDirectory() {
 #endif
 }
 
+static std::filesystem::path GetWindowConfigPath() {
+#if defined(__APPLE__)
+    // Writing inside the .app bundle invalidates its code signature, which makes macOS deny
+    // Screen & System Audio Recording / Microphone access, so keep runtime config in Application Support
+    if (const char* home = std::getenv("HOME")) {
+        std::filesystem::path dir = std::filesystem::path(home) / "Library/Application Support/DJVisualizer";
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        return dir / "window_config.json";
+    }
+#endif
+    return GetAppDirectory() / "window_config.json";
+}
+
 WindowManager::WindowManager() {
     s_instance = this;
 }
@@ -169,7 +186,7 @@ WindowManager::~WindowManager() {
 
 void WindowManager::loadWindowConfig() {
     try {
-        std::filesystem::path configPath = GetAppDirectory() / "window_config.json";
+        std::filesystem::path configPath = GetWindowConfigPath();
         std::error_code ec;
         if (!std::filesystem::exists(configPath, ec)) return;
 
@@ -194,7 +211,7 @@ void WindowManager::loadWindowConfig() {
 
 void WindowManager::saveWindowConfig() {
     try {
-        std::filesystem::path configPath = GetAppDirectory() / "window_config.json";
+        std::filesystem::path configPath = GetWindowConfigPath();
         Visualizer::Json::Value root(Visualizer::Json::Value::Object{});
         root["controlWidth"] = m_controlWidth;
         root["controlHeight"] = m_controlHeight;
@@ -301,7 +318,7 @@ bool WindowManager::createControlWindow(void* /*hInstance*/, int width, int heig
     glfwSetKeyCallback(m_controlWindow, WindowKeyCallback);
 
     std::error_code ec;
-    if (!std::filesystem::exists(GetAppDirectory() / "window_config.json", ec)) {
+    if (!std::filesystem::exists(GetWindowConfigPath(), ec)) {
         saveWindowConfig();
     }
 

@@ -8,12 +8,16 @@
 #include "../control/AutoPilot.h"
 #include "../control/MidiController.h"
 #include "../control/AutoUpdater.h"
+#include "../control/SpaceVoyage.h"
 #include <string>
 #include <vector>
 
 struct GLFWwindow;
 
 namespace Visualizer::UI {
+
+// Which scene shader the stage renders: ModularMixer (Default) or a standalone layout
+enum class StageLayout { Default, SpaceVoyage, Chemistry, Quantum, DaftPunk, DanceParty };
 
 class DjDashboard {
 public:
@@ -25,7 +29,8 @@ public:
         Audio::BeatDetector* beatDetector,
         Control::PresetManager* presetManager,
         Control::AutoPilot* autoPilot,
-        Control::MidiController* midiController
+        Control::MidiController* midiController,
+        Control::SpaceVoyage* spaceVoyage
     );
     ~DjDashboard();
 
@@ -46,16 +51,24 @@ public:
     bool isVsyncEnabled() const { return m_vsync; }
     int getTargetFps() const { return m_targetFps; }
     void setTargetFps(int fps) { m_targetFps = fps; }
+    StageLayout getStageLayout() const { return m_stageLayout; }
+
+    // Loop Visuals: call every frame (the dashboard isn't rendered in fullscreen); the fade
+    // (0..1) dips the stage to black around each automatic layout switch
+    void updateStageLoop(float deltaTime);
+    float getStageFade() const;
 
     void triggerSpacebarDrop();
 
 private:
+    void setStageLayout(StageLayout layout);
     void renderHeaderBar();
     void renderTopStatusBar(float deltaTime);
     void renderVisualMixerPanel();
     void renderConsolidatedDetailsPanel();
     void renderAudioSpectrumPanel();
     void renderProjectorOutputPanel();
+    void openStageWindowOn(int monitorIndex);
     void renderLivePreview();
 
     Graphics::WindowManager* m_windowManager;
@@ -66,6 +79,7 @@ private:
     Control::PresetManager* m_presetManager;
     Control::AutoPilot* m_autoPilot;
     Control::MidiController* m_midiController;
+    Control::SpaceVoyage* m_spaceVoyage;
     Control::AutoUpdater m_autoUpdater;
 
     bool m_vsync = true;
@@ -73,6 +87,7 @@ private:
     int m_selectedMonitor = 1;
     int m_selectedAudioDevice = 0;
     std::vector<Graphics::MonitorInfo> m_monitors;
+    float m_monitorRefreshTimer = 0.0f;
     std::vector<Audio::AudioDeviceInfo> m_audioDevices;
     std::vector<std::string> m_presetList;
     int m_currentPresetIndex = 0;
@@ -87,6 +102,13 @@ private:
     bool m_showUpdateConfirmModal = false;
     int m_targetFps = 144;
     int m_fpsLimitIndex = 3;
+    StageLayout m_stageLayout = StageLayout::Default;
+
+    static constexpr float kLoopFadeSeconds = 0.6f;
+    bool m_loopVisuals = false;
+    float m_loopIntervalSec = 60.0f;   // time on each visual
+    float m_loopTimer = 0.0f;
+    float m_loopFadeIn = kLoopFadeSeconds;
     int m_selectedIngredient = 0; // 0=HeroText, 1=Vignette, 2=Triangle, 3=Lasers, 4=Particles, 5=Grid, 6=Sun, 7=Palettes
 };
 

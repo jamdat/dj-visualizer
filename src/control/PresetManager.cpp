@@ -160,7 +160,7 @@ bool PresetManager::loadPreset(const std::string& presetName, VisualizerPreset& 
     outPreset.logoStyle = root["logoStyle"].as_int(0);
     outPreset.paletteIndex = root["paletteIndex"].as_int(0);
     outPreset.masterBrightness = root["masterBrightness"].as_float(0.85f);
-    outPreset.customText = root["customText"].as_string("DAD PUNK");
+    outPreset.customText = root["customText"].as_string("DADT PUNK");
 
     outPreset.audioGain = root["audioGain"].as_float(1.8f);
     outPreset.autoPilot = root["autoPilot"].as_bool(true);
@@ -182,7 +182,7 @@ VisualizerPreset PresetManager::createDaftAlivePreset() {
     p.pyramidPattern = 0; // VU strips
     p.paletteIndex = 0;   // Daft Red/Gold
     p.masterBrightness = 0.85f;
-    p.customText = "DAD PUNK";
+    p.customText = "DADT PUNK";
     return p;
 }
 
@@ -199,7 +199,7 @@ VisualizerPreset PresetManager::createTronGridPreset() {
     p.particleMultiplier = 1.0f;
     p.paletteIndex = 1;   // TRON Cyan/Orange
     p.masterBrightness = 0.85f;
-    p.customText = "DAD PUNK";
+    p.customText = "DADT PUNK";
     return p;
 }
 
@@ -217,7 +217,7 @@ VisualizerPreset PresetManager::createSpookyPunkPreset() {
     p.pyramidPattern = 1; // Rising chevrons
     p.paletteIndex = 2;
     p.masterBrightness = 0.85f;
-    p.customText = "DAD PUNK";
+    p.customText = "DADT PUNK";
     return p;
 }
 
@@ -232,7 +232,7 @@ VisualizerPreset PresetManager::createLedWallPreset() {
     p.floorMultiplier = 0.4f;
     p.paletteIndex = 0;   // Gold/Amber
     p.masterBrightness = 0.85f;
-    p.customText = "DAD PUNK";
+    p.customText = "DADT PUNK";
     return p;
 }
 
@@ -249,7 +249,7 @@ VisualizerPreset PresetManager::createDadPunkHeroPreset() {
     p.particleMultiplier = 0.8f;
     p.paletteIndex = 0;   // Daft Red/Gold
     p.masterBrightness = 0.85f;
-    p.customText = "DAD PUNK";
+    p.customText = "DADT PUNK";
     return p;
 }
 
@@ -267,7 +267,7 @@ VisualizerPreset PresetManager::createChillAttractPreset() {
     p.pyramidPattern = 3; // Solid glow
     p.paletteIndex = 3;   // Chrome Silver/Blue
     p.masterBrightness = 0.85f;
-    p.customText = "DAD PUNK";
+    p.customText = "DADT PUNK";
     return p;
 }
 

@@ -249,6 +249,22 @@ void TextureManager::generateDefaultProceduralTextures() {
             Visualizer::Log("[TextureManager] Font atlas texture not found: assets/textures/font_atlas.tga");
         }
     }
+
+    // 6. Dance Party face atlas (up to six 512x512 faces side by side, uncompressed 32-bit TGA). It lives in the
+    //    git-ignored assets/private/ folder; without it a transparent 1x1 stand-in makes the shader draw placeholder faces.
+    {
+        if (loadTexture("faces", "assets/private/faces_atlas.tga")) {
+            // Mipmaps so the 512px faces shrink onto the stage without shimmering
+            glBindTexture(GL_TEXTURE_2D, getTextureSRV("faces"));
+            glGenerateMipmap(GL_TEXTURE_2D);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        } else {
+            uint32_t clear = 0;
+            GLuint tex = createRGBA8Texture(1, 1, &clear, false);
+            m_textures["faces"] = { tex, 1, 1, 4, "", {} };
+        }
+    }
 }
 
 bool TextureManager::loadTexture(const std::string& slotName, const std::string& filePath) {
@@ -337,6 +353,10 @@ void TextureManager::bindAll(void* /*context*/) {
         glActiveTexture(GL_TEXTURE0 + i);
         glBindTexture(GL_TEXTURE_2D, texs[i]);
     }
+
+    // Unit 6 is SceneTexture (post-process input); unit 7 is the Dance Party face atlas
+    glActiveTexture(GL_TEXTURE7);
+    glBindTexture(GL_TEXTURE_2D, getTextureSRV("faces"));
 }
 
 } // namespace Visualizer::Graphics

@@ -23,7 +23,7 @@ struct VisualizerPreset {
     int logoStyle = 0;
     int paletteIndex = 0;
     float masterBrightness = 0.85f;
-    std::string customText = "DAD PUNK";
+    std::string customText = "DADT PUNK";
 
     float audioGain = 1.8f;
     bool autoPilot = true;

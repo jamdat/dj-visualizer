@@ -249,16 +249,17 @@ void ShaderCompiler::configureProgramBindings(GLuint program) {
     }
 
     glUseProgram(program);
-    const char* texNames[7] = {
+    const char* texNames[8] = {
         "AudioDataTexture",
         "NoiseTexture",
         "LogoTexture",
         "ColorLUT",
         "LensDirtTexture",
         "FontAtlasTexture",
-        "SceneTexture"
+        "SceneTexture",
+        "FaceAtlasTexture"
     };
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < 8; ++i) {
         GLint loc = glGetUniformLocation(program, texNames[i]);
         if (loc >= 0) {
             glUniform1i(loc, i);

@@ -11,7 +11,7 @@ namespace Visualizer::Control {
 
 struct UserSettings {
     float masterBrightness = 0.85f;    // Kid-safe 85% default cap
-    char customText[17] = "DAD PUNK";  // 16 chars + null terminator
+    char customText[17] = "DADT PUNK";  // 16 chars + null terminator
     int paletteIndex = 0;              // 0: Daft Red/Gold, 1: TRON Cyan/Orange, 2: Club Cyber, 3: Chrome, 4: Rainbow
 
     // Manual scene selection (-1 = Auto, 0..5 = Scene 1..6)
